@@ -1,0 +1,24 @@
+[build-system]
+requires = ["flit"]
+build-backend = "flit.buildapi"
+
+[tool.flit.metadata]
+module = "autosnapgene"
+author = "Kale Kundert"
+author-email = "kale@thekunderts.net"
+requires = [
+  'docopt',
+  'autoprop',
+  'more_itertools',
+]
+classifiers = [
+  'Programming Language :: Python :: 3',
+  'License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)',
+]
+
+[tool.flit.metadata.urls]
+'Version Control' = 'https://github.com/kalekundert/autosnapgene'
+
+[tool.flit.scripts]
+autosnapgene = "autosnapgene.main:main"
+
