@@ -25,7 +25,7 @@ AutoSnapGene is not yet available on PyPI.  In the meantime::
    
 Usage
 -----
-Use --help for brief descriptions of the available commands::
+Use ``--help`` for brief descriptions of the available commands::
 
    $ autosnapgene --help
    Perform batch operations on SnapGene files.
