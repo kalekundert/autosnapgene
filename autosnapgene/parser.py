@@ -2,7 +2,9 @@
 
 import struct
 import autoprop
+import arrow
 import xml.etree.ElementTree as etree
+import html
 from pathlib import Path
 from more_itertools import one
 
@@ -34,9 +36,9 @@ def blocks_from_bytes(bytes):
         while i < len(bytes):
             j = i + 5
             id, size = struct.unpack('>BI', bytes[i:j])
-            block_cls = block_classes.get(id, UndocumentedBlock)
-            block = block_cls.from_bytes(bytes[j:j+size])
-            block.id = id
+            cls = block_classes.get(id, UndocumentedBlock)
+            block = cls.from_bytes(bytes[j:j+size])
+            block.block_id = id
             blocks.append(block)
             i = j + size
 
@@ -58,7 +60,7 @@ def bytes_from_blocks(blocks):
 
 def bytes_from_block(block):
     bytes = block.to_bytes()
-    header = struct.pack('>BI', block.id, len(bytes))
+    header = struct.pack('>BI', block.block_id, len(bytes))
     return header + bytes
 
 def ztr_from_data(data):
@@ -88,6 +90,7 @@ def ztr_from_data(data):
     p = run(['convert_trace'], input=data, capture_output=True, check=True)
     return p.stdout
 
+@autoprop
 class SnapGene:
 
     def __init__(self, path=None):
@@ -123,6 +126,172 @@ class SnapGene:
         block = self.find_block(cls)
         self.blocks.remove(block)
 
+    # Notes
+
+    def get_plasmid_type(self):
+        """
+        "Natural" or "Synthetic".
+        """
+        return find_block('NotesBlock').type
+
+    def set_plasmid_type(self, value):
+        find_block('NotesBlock').type = value
+
+    def get_custom_map_label(self):
+        return find_block('NotesBlock').custom_map_label
+
+    def set_custom_map_label(self, value):
+        find_block('NotesBlock').custom_map_label = value
+
+    def get_use_custom_map_label(self):
+        return find_block('NotesBlock').use_custom_map_label
+
+    def set_use_custom_map_label(self, value):
+        find_block('NotesBlock').use_custom_map_label = value
+
+    def get_is_confirmed_experimentally(self):
+        """
+        True if this sequence has been experimentally confirmed.
+        """
+        return find_block('NotesBlock').is_confirmed_experimentally
+
+    def set_is_confirmed_experimentally(self, value):
+        find_block('NotesBlock').is_confirmed_experimentally = value
+
+    def get_description(self):
+        """
+        A description of the sequence.
+        """
+        return self.find_block(NotesBlock).description
+
+    def set_description(self, value):
+        self.find_block(NotesBlock).description = value
+
+    def get_date_created(self):
+        """
+        The date the sequence was created.
+        """
+        return self.find_block(NotesBlock).date_created
+
+    def set_date_created(self, value):
+        self.find_block(NotesBlock).date_created = value
+
+    def get_date_last_modified(self):
+        """
+        The date the sequence was last modified.
+        """
+        return self.find_block(NotesBlock).date_last_modified
+
+    def set_date_last_modified(self, value):
+        self.find_block(NotesBlock).date_last_modified = value
+
+    def get_accession_number(self):
+        return self.find_block(NotesBlock).accession_number
+
+    def set_accession_number(self, value):
+        self.find_block(NotesBlock).accession_number = value
+
+    def get_code_number(self):
+        return self.find_block(NotesBlock).code_number
+
+    def set_code_number(self, value):
+        self.find_block(NotesBlock).code_number = value
+
+    def get_author(self):
+        """
+        The creator of this sequence.
+        """
+        return self.find_block(NotesBlock).author
+
+    def set_author(self, value):
+        self.find_block(NotesBlock).author = value
+
+    def get_organism(self):
+        """
+        The organism this sequence derives from.
+        """
+        return self.find_block(NotesBlock).organism
+
+    def set_organism(self, value):
+        self.find_block(NotesBlock).organism = value
+
+    def get_sequence_class(self):
+        return self.find_block(NotesBlock).sequence_class
+
+    def set_sequence_class(self, value):
+        self.find_block(NotesBlock).sequence_class = value
+
+    def get_transformed_into(self):
+        """
+        The organism/strain being used to propagate this sequence in the lab.
+        """
+        return self.find_block(NotesBlock).transformed_into
+
+    def set_transformed_into(self, value):
+        self.find_block(NotesBlock).transformed_into = value
+
+    def get_comments(self):
+        """
+        Miscellaneous comments on this sequence.
+        """
+        return self.find_block(NotesBlock).comments
+
+    def set_comments(self, value):
+        self.find_block(NotesBlock).comments = value
+
+    def get_references(self):
+        return self.find_block(NotesBlock).references
+
+    def set_references(self, value):
+        self.find_block(NotesBlock).references = value
+
+    # DNA
+    
+    def get_topology(self):
+        return self.find_block(DnaBlock).topology
+
+    def set_topology(self, value):
+        self.find_block(DnaBlock).topology = value
+
+    def get_strandedness(self):
+        return self.find_block(DnaBlock).strandedness
+
+    def set_strandedness(self, value):
+        self.find_block(DnaBlock).strandedness = value
+
+    def get_is_dam_methylated(self):
+        return self.find_block(DnaBlock).is_dam_methylated
+
+    def set_is_dam_methylated(self, value):
+        self.find_block(DnaBlock).is_dam_methylated = value
+
+    def get_is_dcm_methylated(self):
+        return self.find_block(DnaBlock).is_dcm_methylated
+
+    def set_is_dcm_methylated(self, value):
+        self.find_block(DnaBlock).is_dcm_methylated = value
+
+    def get_is_ecoki_methylated(self):
+        return self.find_block(DnaBlock).is_ecoki_methylated
+
+    def set_is_ecoki_methylated(self, value):
+        self.find_block(DnaBlock).is_ecoki_methylated = value
+
+    def get_sequence(self):
+        return self.find_block(DnaBlock).sequence
+
+    def set_sequence(self, value):
+        self.find_block(DnaBlock).sequence = value
+
+
+    # append_trace
+    # prepend_trace
+    # insert_trace
+    # sort_traces
+    # clear_traces
+    # remove_trace
+    # count_traces
+    # extract_traces
 
     def add_trace(self, path):
         path = Path(path)
@@ -161,16 +330,27 @@ class SnapGene:
         self.remove_blocks(HistoryBlock)
         self.remove_blocks(HistoryNodeBlock)
 
+    # add_primer
+    # remove_primer
+    # clear_primers
+    # count_primers
+    # extract_primers
+    
+    # add_feature
+    # remove_feature
+    # clear_features
+    # count_features
+    # extract_features
 
 class Block:
 
     def __init_subclass__(cls):
-        if hasattr(cls, 'id'):
-            block_ids[cls.name] = cls.id
-            block_classes[cls.id] = cls
+        if hasattr(cls, 'block_id'):
+            block_ids[cls.block_name] = cls.block_id
+            block_classes[cls.block_id] = cls
 
     def __repr__(self):
-        return f"<{self.__class__.__name__} id={self.id} {self.__repr_attrs__()}".strip() + ">"
+        return f"<{self.__class__.__name__} block_id={self.block_id} {self.__repr_attrs__()}".strip() + ">"
 
     def __repr_attrs__(self):
         return ''
@@ -204,8 +384,8 @@ class UnparsedBlock(Block):
 
 @autoprop
 class HeaderBlock(Block):
-    id = 9
-    name = 'header'
+    block_id = 9
+    block_name = 'header'
 
     def __init__(self):
         self.type_id = None
@@ -244,8 +424,8 @@ class HeaderBlock(Block):
 
 
 class DnaBlock(Block):
-    id = 0
-    name = 'dna'
+    block_id = 0
+    block_name = 'dna'
 
     def __init__(self):
         self.topology = None
@@ -262,6 +442,7 @@ class DnaBlock(Block):
     def from_bytes(cls, bytes):
         block = cls()
 
+        print(bytes)
         props = bytes[0]
         block.topology = 'circular' if props & 0x01 else 'linear'
         block.strandedness = 'double' if props & 0x02 else 'single'
@@ -284,36 +465,219 @@ class DnaBlock(Block):
         return struct.pack('>B', props) + self.sequence.encode('ascii')
 
 class CompressedDnaBlock(UnparsedBlock):
-    id = 1
-    name = 'compressed_dna'
+    block_id = 1
+    block_name = 'compressed_dna'
 
 class PrimerBlock(UnparsedBlock):
-    id = 5
-    name = 'primers'
+    block_id = 5
+    block_name = 'primers'
 
-class NotesBlock(UnparsedBlock):
-    id = 6
-    name = 'notes'
+class NotesBlock(Block):
+    block_id = 6
+    block_name = 'notes'
+
+    class TextTag:
+
+        @staticmethod
+        def from_xml(element):
+            return element.text
+
+        @staticmethod
+        def to_xml(element, value):
+            element.text = value
+
+    class BoolTag:
+
+        @staticmethod
+        def from_xml(element):
+            return {'0': False, '1': True}[element.text]
+
+        @staticmethod
+        def to_xml(element, value):
+            element.text = str(int(value))
+
+    class DateTag:
+
+        @staticmethod
+        def from_xml(element):
+            return arrow.get(element.text, 'YYYY.M.D')
+
+        @staticmethod
+        def to_xml(element, value):
+            element.text = value.format('YYYY.M.D')
+
+    class HtmlTag(TextTag):
+
+        # I made this class because I thought that I'd have to specially escape 
+        # and unescape HTML content, but it turns out that the XML library 
+        # takes care of that automatically.  So this class ends up being 
+        # functionally the same as TextTag.  I'm keeping it because it's still 
+        # semantic.
+
+        pass
+
+    class ReferencesTag:
+
+        @staticmethod
+        def from_xml(element):
+            return [
+                    Reference.from_xml(child)
+                    for child in element
+            ]
+
+        @staticmethod
+        def to_xml(element, value):
+            for ref in value:
+                child = ref.to_xml()
+                element.append(child)
+
+    attr_defs = [
+            ('uuid', 'UUID', TextTag),
+            ('type', 'Type', TextTag),
+            ('custom_map_label', 'CustomMapLabel', TextTag),
+            ('use_custom_map_label', 'UseCustomMapLabel', BoolTag),
+            ('is_confirmed_experimentally', 'ConfirmedExperimentally', BoolTag),
+            ('description', 'Description', HtmlTag),
+            ('date_created', 'Created', DateTag),
+            ('date_last_modified', 'LastModified', DateTag),
+            ('accession_number', 'AccessionNumber', TextTag),
+            ('code_number', 'CodeNumber', TextTag),
+            ('author', 'CreatedBy', TextTag),
+            ('organism', 'Organism', TextTag),
+            ('sequence_class', 'SequenceClass', TextTag),
+            ('transformed_into', 'TransformedInto', TextTag),
+            ('comments', 'Comments', HtmlTag),
+            ('references', 'References', ReferencesTag),
+    ]
+    parsers_by_attr = {
+            attr: (tag, parser)
+            for attr, tag, parser in attr_defs
+    }
+    parsers_by_tag = {
+            tag: (attr, parser)
+            for attr, tag, parser in attr_defs
+    }
+
+    def __init__(self):
+        self.attrs = {}
+
+    def __repr_attrs__(self):
+        attrs = 'type', 'created_by', 'last_modified'
+        return ' '.join(
+                f'{k}="{getattr(self, k)}"'
+                for k in attrs
+                if k in self.attrs
+        )
+
+    def __getattr__(self, attr):
+        if attr in self.attrs:
+            return self.attrs[attr]
+
+        elif attr in self.parsers_by_attr:
+            raise AttributeError(f"note '{attr}' not defined for this sequence.")
+
+        else:
+            did_you_mean = '\n    '.join(self.parsers_by_attr)
+            raise AttributeError(f"unknown note '{attr}', did you mean:\n    {did_you_mean}")
+
+    def __setattr__(self, attr, value):
+        if attr in self.parsers_by_attr:
+            self.attrs[attr] = value
+        else:
+            super().__setattr__(attr, value)
+
+    def __delattr__(self, attr):
+        if attr in self.attrs:
+            del self.attrs[attr]
+
+        elif attr in self.parsers_by_attr:
+            raise AttributeError(f"note '{attr}' not defined for this sequence.")
+
+        else:
+            did_you_mean = '\n    '.join(self.parsers_by_attr)
+            raise AttributeError(f"unknown note '{attr}', did you mean:\n    {did_you_mean}")
+
+
+
+    @classmethod
+    def from_bytes(cls, bytes):
+        block = cls()
+
+        xml = bytes.decode('utf8')
+        root = etree.fromstring(xml)
+
+        for element in root:
+            attr, parser = cls.parsers_by_tag[element.tag]
+            block.attrs[attr] = parser.from_xml(element)
+
+        return block
+
+    def to_bytes(self):
+        root = etree.Element('Notes')
+
+        for attr in self.attrs:
+            tag, parser = self.parsers_by_attr[attr]
+            element = etree.SubElement(root, tag)
+            parser.to_xml(element, self.attrs[attr])
+
+        return etree.tostring(root)
+
+class Reference:
+
+    def __init__(self):
+        self.title = None
+        self.pubmed_id = None
+        self.journal = None
+        self.authors = None
+
+    def __repr__(self):
+        return f"<Reference id={self.id} name='{self.name}' is_trace={int(self.is_trace)} sort_order={self.sort_order}>"
+
+    @classmethod
+    def from_xml(cls, element):
+        unescape = lambda x: html.unescape(x) if x is not None else x
+
+        ref = cls()
+        ref.title = unescape(element.attrib.get('title'))
+        ref.pubmed_id = element.attrib.get('pubMedID')
+        ref.journal = unescape(element.attrib.get('journal'))
+        ref.authors = unescape(element.attrib.get('authors'))
+
+        return ref
+
+    def to_xml(self):
+        def attr(k, v, f=lambda x: x):
+            if v is not None:
+                attrs[k] = f(v)
+
+        attrs = {}
+        attr('title', self.title, html.escape)
+        attr('pubMedID', self.pubmed_id)
+        attr('journal', self.journal, html.escape)
+        attr('authors', self.authors, html.escape)
+
+        return etree.Element('Reference', attrs)
+
 
 class HistoryBlock(UnparsedBlock):
-    id = 7
-    name = 'history'
+    block_id = 7
+    block_name = 'history'
 
 class HistoryNodeBlock(UnparsedBlock):
-    id = 11
-    name = 'history_node'
+    block_id = 11
+    block_name = 'history_node'
 
 class PropertiesBlock(UnparsedBlock):
-    id = 8
-    name = 'properties'
+    block_id = 8
+    block_name = 'properties'
 
 class FeaturesBlock(UnparsedBlock):
-    id = 10
-    name = 'features'
+    block_id = 10
+    block_name = 'features'
 
 class AlignmentsBlock(Block):
-    id = 17
-    name = 'alignments'
+    block_id = 17
+    block_name = 'alignments'
 
     def __init__(self):
         self.trim_stringency = None
@@ -376,8 +740,8 @@ class AlignmentMetadata:
 
 
 class AlignedSequenceBlock(Block):
-    id = 16
-    name = 'aligned_sequence'
+    block_id = 16
+    block_name = 'aligned_sequence'
 
     def __init__(self):
         self.seq_id = None
@@ -399,16 +763,16 @@ class AlignedSequenceBlock(Block):
         return bytes
 
 class AlignedTraceBlock(UnparsedBlock):
-    id = 18
-    name = 'aligned_trace'
+    block_id = 18
+    block_name = 'aligned_trace'
 
 class UracilBlock(UnparsedBlock):
-    id = 19
-    name = 'uracils'
+    block_id = 19
+    block_name = 'uracils'
 
 class DnaColorBlock(UnparsedBlock):
-    id = 20
-    name = 'dna_colors'
+    block_id = 20
+    block_name = 'dna_colors'
 
 class UndocumentedBlock(UnparsedBlock):
     pass
