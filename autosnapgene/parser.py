@@ -10,10 +10,6 @@ from more_itertools import one
 
 block_ids = {}
 block_classes = {}
-file_types = {
-        0: 'unknown',
-        1: 'dna',
-}
 
 def parse(path):
     dna = SnapGene()
@@ -117,14 +113,41 @@ class SnapGene:
         return [x for x in self.blocks if isinstance(x, cls)]
 
     def find_block(self, cls):
-        return one(self.find_blocks(cls))
+        return one(
+                self.find_blocks(cls),
+                too_short=BlockNotFound(f"{self._this_seq} doesn't have any {cls.__name__} blocks."),
+                too_long=AssertionError,
+        )
 
     def remove_blocks(self, cls):
         self.blocks = [x for x in self.blocks if not isinstance(x, cls)]
 
     def remove_block(self, cls):
-        block = self.find_block(cls)
-        self.blocks.remove(block)
+        try:
+            block = self.find_block(cls)
+            self.blocks.remove(block)
+        except BlockNotFound:
+            pass
+
+    # Header
+    
+    def get_file_type(self):
+        return self.find_block(HeaderBlock).file_type
+
+    def set_file_type(self, value):
+        self.find_block(HeaderBlock).file_type = value
+
+    def get_import_version(self):
+        return self.find_block(HeaderBlock).import_version
+
+    def set_import_version(self, value):
+        self.find_block(HeaderBlock).import_version = value
+
+    def get_export_version(self):
+        return self.find_block(HeaderBlock).export_version
+
+    def set_export_version(self, value):
+        self.find_block(HeaderBlock).export_version = value
 
     # Notes
 
@@ -132,31 +155,31 @@ class SnapGene:
         """
         "Natural" or "Synthetic".
         """
-        return find_block('NotesBlock').type
+        return self.find_block(NotesBlock).type
 
     def set_plasmid_type(self, value):
-        find_block('NotesBlock').type = value
+        self.find_block(NotesBlock).type = value
 
     def get_custom_map_label(self):
-        return find_block('NotesBlock').custom_map_label
+        return self.find_block(NotesBlock).custom_map_label
 
     def set_custom_map_label(self, value):
-        find_block('NotesBlock').custom_map_label = value
+        self.find_block(NotesBlock).custom_map_label = value
 
     def get_use_custom_map_label(self):
-        return find_block('NotesBlock').use_custom_map_label
+        return self.find_block(NotesBlock).use_custom_map_label
 
     def set_use_custom_map_label(self, value):
-        find_block('NotesBlock').use_custom_map_label = value
+        self.find_block(NotesBlock).use_custom_map_label = value
 
     def get_is_confirmed_experimentally(self):
         """
         True if this sequence has been experimentally confirmed.
         """
-        return find_block('NotesBlock').is_confirmed_experimentally
+        return self.find_block(NotesBlock).is_confirmed_experimentally
 
     def set_is_confirmed_experimentally(self, value):
-        find_block('NotesBlock').is_confirmed_experimentally = value
+        self.find_block(NotesBlock).is_confirmed_experimentally = value
 
     def get_description(self):
         """
@@ -283,17 +306,79 @@ class SnapGene:
     def set_sequence(self, value):
         self.find_block(DnaBlock).sequence = value
 
+    # Alignment
 
-    # append_trace
-    # prepend_trace
-    # insert_trace
-    # sort_traces
-    # clear_traces
-    # remove_trace
-    # count_traces
-    # extract_traces
+    def get_traces(self, name=None):
+        """
+        Return information about all of the alignments/traces associated with 
+        the sequence.
 
-    def add_trace(self, path):
+        If a name is provided, only traces with that name will be returned.  If 
+        a Pathlib.Path() is given as the name,  the stem of that path will be 
+        taken as the name.
+        """
+        try:
+            metadata = self.find_block(AlignmentsBlock).metadata
+        except BlockNotFound:
+            return []
+
+        if name is None:
+            return metadata
+        else:
+            if isinstance(name, Path):
+                name = name.stem
+            return [x for x in metadata if x.name == name]
+
+    def get_trace_names(self):
+        return [x.name for x in self.get_traces()]
+
+    def has_trace(self, name):
+        """
+        Return True is the sequence contains a trace with the given name.
+
+        If a Pathlib.Path() is given as the name,  the stem of that path will 
+        be taken as the name.
+        """
+        return bool(self.get_traces(name))
+
+    def add_trace(self, path, name=None):
+        """
+        Add the given trace to the sequence, if the sequence doesn't already 
+        have a trace of the same name (or the given name).
+
+        The trace is always added after any existing traces.
+        """
+
+        if not self.has_trace(name or path):
+            self.append_trace(path, name=name)
+        else:
+            self.replace_trace(name or path, path, new_name=name)
+
+    def append_trace(self, path, name=None):
+        """
+        Add the given trace to this sequence after any existing traces.
+
+        Unlike add_trace(), this function adds the trace unconditionally, which 
+        may result in duplicates.
+        """
+        self.insert_trace(self.count_traces(), path, name=name)
+
+    def prepend_trace(self, path, name=None):
+        """
+        Add the given trace to this sequence before any existing traces.
+
+        Unlike add_trace(), this function adds the trace unconditionally, which 
+        may result in duplicates.
+        """
+        self.insert_trace(0, path, name=name)
+
+    def insert_trace(self, i, path, name=None):
+        """
+        Add the given trace to this sequence at the given index.
+
+        Unlike add_trace(), this function adds the trace unconditionally, which 
+        may result in duplicates.
+        """
         path = Path(path)
 
         # Convert the sequencing data to the ZTR format.
@@ -311,7 +396,7 @@ class SnapGene:
 
         # Make a new AlignedSequenceBlock with the above id and trace block.
         seq_block = AlignedSequenceBlock()
-        seq_block.seq_id = next_id
+        seq_block.id = next_id
         seq_block.traces = [trace_block]
 
         # Add the sequence block to the file (the trace block will be added 
@@ -321,10 +406,134 @@ class SnapGene:
         # Update the AlignmentsBlock metadata.
         meta = AlignmentMetadata()
         meta.id = next_id
-        meta.name = path.stem
+        meta.name = name or path.stem
         meta.is_trace = True
-        meta.sort_order = next_order
-        align_block.metadata.append(meta)
+        align_block.metadata.insert(i, meta)
+
+        for i, meta in enumerate(align_block.metadata):
+            meta.sort_order = i
+
+    def remove_trace(self, name):
+        """
+        Remove the trace with the given name.
+
+        If a Pathlib.Path() is given as the name,  the stem of that path will 
+        be taken as the name.  If there are multiple traces with the same name, 
+        all will be removed.  If there are no traces with the given name, a 
+        ValueError will be raised.
+        """
+
+        if isinstance(name, Path):
+            name = name.stem
+
+        # Remove the blocks/metadata corresponding to the given name.
+
+        align_block = self.find_block(AlignmentsBlock)
+        seq_blocks = {
+                block.id: block
+                for block in self.find_blocks(AlignedSequenceBlock)
+        }
+
+        found_name = False
+        for meta in align_block.metadata[:]:
+            if meta.name == name:
+                align_block.metadata.remove(meta)
+                self.blocks.remove(seq_blocks[meta.id])
+                found_name = True
+
+        if not found_name:
+            raise ValueError(f"no trace named '{name}'")
+
+        # Make the id numbers contiguous.  I don't think this is necessary, but 
+        # it seems like the right thing to do.
+
+        for new_id, meta in enumerate(align_block.metadata):
+            old_id = meta.id
+            meta.id = seq_blocks[old_id].id = new_id
+
+    def rename_trace(self, old_name, new_name):
+        """
+        Rename the given trace.
+
+        If multiple traces have the same name, they will all be renamed.
+        """
+        traces = self.get_trace(old_name)
+        if not traces:
+            raise ValueError("no trace named '{old_name}'")
+
+        for meta in traces:
+            meta.name = new_name
+
+    def replace_trace(self, old_name, path, new_name=None):
+        """
+        Replace the trace with the given name with the given path.
+
+        If there are multiple traces with the given name, the first will be 
+        replaced and the rest will be removed.
+        """
+
+        if isinstance(old_name, Path):
+            old_name = old_name.stem
+
+        traces = self.get_traces()
+        if not traces:
+            raise ValueError("no trace named '{old_name}'")
+
+        for i, meta in enumerate(traces):
+            if meta.name == old_name:
+                break
+
+        self.remove_trace(old_name)
+        self.insert_trace(i, path, name=new_name)
+
+    def count_traces(self):
+        return len(self.get_traces())
+
+    def sort_traces(self, key=lambda x: x.name, reverse=False):
+        """
+        Rearrange the traces according to the given key function.
+
+        If no key function is given, the traces will be sorted alphabetically.  
+        The argument to the key function will be an AlignmentMetadata object.
+        """
+        traces = self.get_traces()
+        traces.sort(key=key, reverse=reverse)
+        for i, meta in enumerate(traces):
+            meta.sort_order = i
+
+    def clear_traces(self):
+        """
+        Remove all traces from the sequence.
+        """
+        self.remove_block(AlignmentsBlock)
+        self.remove_blocks(AlignedSequenceBlock)
+
+    def extract_traces(self, dir):
+        """
+        Save any traces associated with this sequence as separate files in the 
+        given directory.
+
+        The traces will be saved in the ZTR format, which is the format used 
+        internally by SnapGene.
+        """
+        dir = Path(dir)
+        dir.mkdir(parents=True, exist_ok=True)
+
+        seq_blocks = {
+                block.id: block
+                for block in self.find_blocks(AlignedSequenceBlock)
+        }
+
+        for meta in self.get_traces():
+            seq_block = seq_blocks[meta.id]
+            trace_blocks = seq_block.traces
+
+            for i, trace_block in enumerate(trace_blocks):
+                suffix = f'_{i+1}' if len(trace_blocks) > 1 else ''
+                path = dir / f'{meta.name}{suffix}.ztr'
+                path.write_bytes(trace_block.bytes)
+
+    # History
 
     def clear_history(self):
         self.remove_blocks(HistoryBlock)
@@ -341,6 +550,10 @@ class SnapGene:
     # clear_features
     # count_features
     # extract_features
+
+    @property
+    def _this_seq(self):
+        return f"'{self.input_path}'" if self.input_path else "this sequence"
 
 class Block:
 
@@ -387,6 +600,11 @@ class HeaderBlock(Block):
     block_id = 9
     block_name = 'header'
 
+    file_types = {
+            0: 'unknown',
+            1: 'dna',
+    }
+
     def __init__(self):
         self.type_id = None
         self.export_version = None
@@ -394,7 +612,6 @@ class HeaderBlock(Block):
 
     def __repr_attrs__(self):
         return f"type='{self.type}' export_version='{self.export_version}' import_version='{self.import_version}'"
-
 
     @classmethod
     def from_bytes(cls, bytes):
@@ -407,9 +624,9 @@ class HeaderBlock(Block):
         return cls.from_info(*info)
 
     @classmethod
-    def from_info(cls, type, export_version, import_version):
+    def from_info(cls, type_id, export_version, import_version):
         block = cls()
-        block.type_id = type
+        block.type_id = type_id
         block.export_version = export_version
         block.import_version = import_version
         return block
@@ -418,9 +635,8 @@ class HeaderBlock(Block):
         return b'SnapGene' + struct.pack('>HHH',
                 self.type_id, self.export_version, self.import_version)
 
-
     def get_type(self):
-        return file_types[self.type_id]
+        return self.file_types[self.type_id]
 
 
 class DnaBlock(Block):
@@ -442,7 +658,6 @@ class DnaBlock(Block):
     def from_bytes(cls, bytes):
         block = cls()
 
-        print(bytes)
         props = bytes[0]
         block.topology = 'circular' if props & 0x01 else 'linear'
         block.strandedness = 'double' if props & 0x02 else 'single'
@@ -698,6 +913,7 @@ class AlignmentsBlock(Block):
                 AlignmentMetadata.from_xml(child)
                 for child in root
         ]
+        block.metadata.sort(key=lambda x: x.sort_order)
         return block
 
     def to_bytes(self):
@@ -720,6 +936,14 @@ class AlignmentMetadata:
 
     def __repr__(self):
         return f"<AlignmentMetadata id={self.id} name='{self.name}' is_trace={int(self.is_trace)} sort_order={self.sort_order}>"
+
+    def __eq__(self, other):
+        return all([
+            self.id == other.id,
+            self.name == other.name,
+            self.is_trace == other.is_trace,
+            self.sort_order == other.sort_order,
+        ])
 
     @classmethod
     def from_xml(cls, element):
@@ -744,21 +968,21 @@ class AlignedSequenceBlock(Block):
     block_name = 'aligned_sequence'
 
     def __init__(self):
-        self.seq_id = None
+        self.id = None
         self.traces = []
 
     def __repr_attrs__(self):
-        return f"seq_id={self.seq_id}"
+        return f"id={self.id}"
 
     @classmethod
     def from_bytes(cls, bytes):
         block = cls()
-        block.seq_id, = struct.unpack('>I', bytes[:4])
+        block.id, = struct.unpack('>I', bytes[:4])
         block.traces = blocks_from_bytes(bytes[4:])
         return block
 
     def to_bytes(self):
-        bytes = struct.pack('>I', self.seq_id)
+        bytes = struct.pack('>I', self.id)
         bytes += bytes_from_blocks(self.traces)
         return bytes
 
@@ -787,3 +1011,5 @@ class SnapGeneError(Exception):
 
     def __str__(self):
         return self.message.format(path=self.path)
+class BlockNotFound(AttributeError):
+    pass

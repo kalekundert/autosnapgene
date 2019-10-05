@@ -13,11 +13,12 @@ def parse_and_write(tmp_path):
         in_path = EX / name
         out_path = tmp_path / in_path.name
 
-        in_dna = snap.parse(EX / 't7_promoter.dna')
+        in_dna = snap.parse(EX / name)
         snap.write(out_path, in_dna)
         out_dna = snap.parse(out_path)
 
-        return in_dna, out_dna
+        print('input...');  yield in_dna
+        print('output...'); yield out_dna
 
     return helper
 
