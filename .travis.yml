@@ -8,7 +8,7 @@ install:
     # paths in site-packages actually run.  I'm not totally sure.
     - pip install -e .
 script: 
-    - py.test tests --cov tich_me
+    - py.test tests --cov autosnapgene
 after_success:
     - coveralls
 
