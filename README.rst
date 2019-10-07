@@ -1,17 +1,17 @@
 AutoSnapGene
 ============
 
-.. image:: https://img.shields.io/pypi/v/snapgene_tools.svg
-   :target: https://pypi.python.org/pypi/snapgene_tools
+.. image:: https://img.shields.io/pypi/v/autosnapgene.svg
+   :target: https://pypi.python.org/pypi/autosnapgene
 
-.. image:: https://img.shields.io/pypi/pyversions/snapgene_tools.svg
-   :target: https://pypi.python.org/pypi/snapgene_tools
+.. image:: https://img.shields.io/pypi/pyversions/autosnapgene.svg
+   :target: https://pypi.python.org/pypi/autosnapgene
 
-.. image:: https://img.shields.io/travis/kalekundert/snapgene_tools.svg
-   :target: https://travis-ci.org/kalekundert/snapgene_tools
+.. image:: https://img.shields.io/travis/kalekundert/autosnapgene.svg
+   :target: https://travis-ci.org/kalekundert/autosnapgene
 
-.. image:: https://img.shields.io/coveralls/kalekundert/snapgene_tools.svg
-   :target: https://coveralls.io/github/kalekundert/snapgene_tools?branch=master
+.. image:: https://img.shields.io/coveralls/kalekundert/autosnapgene.svg
+   :target: https://coveralls.io/github/kalekundert/autosnapgene?branch=master
 
 AutoSnapGene is a set of tools for automatically processing SnapGene files.  It includes a parser capable of reading and writing SnapGene files, in addition to a set of command-line utilities that implement common operations.
 
