@@ -31,13 +31,22 @@ bytes_params = [
             (b'\x00N',    (   'N',   'linear', 'single', 0, 0, 0)),
 ]
 
-def test_examples(parse_and_write):
+def test_getters(parse_and_write):
     for dna in parse_and_write('t7_promoter.dna'):
         assert dna.sequence == 'TAATACGACTCACTATAGG'
+        assert dna.dna_sequence == 'TAATACGACTCACTATAGG'
         assert dna.topology == 'linear'
         assert dna.is_dam_methylated == False
         assert dna.is_dcm_methylated == False
         assert dna.is_ecoki_methylated == False
+
+def test_setters():
+    dna = snap.SnapGene()
+    dna.dna_sequence = 'TAATACGACTCACTATAGG'
+    dna.topology = 'linear'
+    dna.is_dam_methylated = False
+    dna.is_dcm_methylated = False
+    dna.is_ecoki_methylated = False
 
 @pytest.mark.parametrize('bytes,params', bytes_params)
 def test_from_bytes(bytes, params):

@@ -109,6 +109,11 @@ class SnapGene:
         file_from_blocks(path, self.blocks)
 
 
+    def make_block(self, cls):
+        block = cls()
+        self.blocks.append(block)
+        return block
+
     def find_blocks(self, cls):
         return [x for x in self.blocks if isinstance(x, cls)]
 
@@ -119,6 +124,12 @@ class SnapGene:
                 too_long=AssertionError,
         )
 
+    def find_or_make_block(self, cls):
+        try:
+            return self.find_block(cls)
+        except BlockNotFound:
+            return self.make_block()
+
     def remove_blocks(self, cls):
         self.blocks = [x for x in self.blocks if not isinstance(x, cls)]
 
@@ -128,6 +139,82 @@ class SnapGene:
             self.blocks.remove(block)
         except BlockNotFound:
             pass
+
+    # DNA
+
+    def get_sequence(self):
+        """
+        Get the DNA or protein sequence stored in this file.
+
+        This method will not indicate whether it returned a protein or DNA 
+        sequence, so if that is not clear from the context, use 
+        `get_dna_sequence()` or `get_protein_sequence()` to be sure.  If the 
+        file doesn't contain either type of sequence, a `BlockNotFound` 
+        exception will be raised.
+        """
+        try:
+            return self.dna_sequence
+        except BlockNotFound:
+            return self.protein_sequence
+
+    def set_sequence(self, value):
+        """
+        Set the DNA or protein sequence stored in this file.
+
+        If the file does not yet contain a sequence, the DNA sequence will be 
+        set.
+        """
+        try:
+            self.find_block(DnaBlock).sequence = value
+        except BlockNotFound:
+            try:
+                self.find_block(ProteinBlock).sequence = value
+            except BlockNotFound:
+                self.make_block(DnaBlock).sequence = value
+
+    def get_topology(self):
+        return self.find_block(DnaBlock).topology
+
+    def set_topology(self, value):
+        self.find_or_make_block(DnaBlock).topology = value
+
+    def get_strandedness(self):
+        return self.find_block(DnaBlock).strandedness
+
+    def set_strandedness(self, value):
+        self.find_or_make_block(DnaBlock).strandedness = value
+
+    def get_is_dam_methylated(self):
+        return self.find_block(DnaBlock).is_dam_methylated
+
+    def set_is_dam_methylated(self, value):
+        self.find_or_make_block(DnaBlock).is_dam_methylated = value
+
+    def get_is_dcm_methylated(self):
+        return self.find_block(DnaBlock).is_dcm_methylated
+
+    def set_is_dcm_methylated(self, value):
+        self.find_or_make_block(DnaBlock).is_dcm_methylated = value
+
+    def get_is_ecoki_methylated(self):
+        return self.find_block(DnaBlock).is_ecoki_methylated
+
+    def set_is_ecoki_methylated(self, value):
+        self.find_or_make_block(DnaBlock).is_ecoki_methylated = value
+
+    def get_dna_sequence(self):
+        return self.find_block(DnaBlock).sequence
+
+    def set_dna_sequence(self, value):
+        self.find_or_make_block(DnaBlock).sequence = value
+
+    # Protein
+
+    def get_protein_sequence(self):
+        return self.find_block(ProteinBlock).sequence
+
+    def set_protein_sequence(self, value):
+        self.find_or_make_block(ProteinBlock).sequence = value
 
     # Header
     
@@ -267,44 +354,6 @@ class SnapGene:
 
     def set_references(self, value):
         self.find_block(NotesBlock).references = value
-
-    # DNA
-    
-    def get_topology(self):
-        return self.find_block(DnaBlock).topology
-
-    def set_topology(self, value):
-        self.find_block(DnaBlock).topology = value
-
-    def get_strandedness(self):
-        return self.find_block(DnaBlock).strandedness
-
-    def set_strandedness(self, value):
-        self.find_block(DnaBlock).strandedness = value
-
-    def get_is_dam_methylated(self):
-        return self.find_block(DnaBlock).is_dam_methylated
-
-    def set_is_dam_methylated(self, value):
-        self.find_block(DnaBlock).is_dam_methylated = value
-
-    def get_is_dcm_methylated(self):
-        return self.find_block(DnaBlock).is_dcm_methylated
-
-    def set_is_dcm_methylated(self, value):
-        self.find_block(DnaBlock).is_dcm_methylated = value
-
-    def get_is_ecoki_methylated(self):
-        return self.find_block(DnaBlock).is_ecoki_methylated
-
-    def set_is_ecoki_methylated(self, value):
-        self.find_block(DnaBlock).is_ecoki_methylated = value
-
-    def get_sequence(self):
-        return self.find_block(DnaBlock).sequence
-
-    def set_sequence(self, value):
-        self.find_block(DnaBlock).sequence = value
 
     # Alignment
 
@@ -603,6 +652,7 @@ class HeaderBlock(Block):
     file_types = {
             0: 'unknown',
             1: 'dna',
+            2: 'protein',  # Just a guess...
     }
 
     def __init__(self):
@@ -652,7 +702,12 @@ class DnaBlock(Block):
         self.sequence = None
 
     def __repr_attrs__(self):
-        return f"{self.topology} {self.strandedness} sequence='{self.sequence[:32]}...'"
+        if len(self.sequence) > 32:
+            truncated_seq = f"{self.sequence[:16]}...{self.sequence[-16:]}"
+        else:
+            truncated_seq = self.sequence
+
+        return f"{self.topology} {self.strandedness} sequence='{truncated_seq}'"
 
     @classmethod
     def from_bytes(cls, bytes):
@@ -678,6 +733,40 @@ class DnaBlock(Block):
                 0x10 * self.is_ecoki_methylated,
         ])
         return struct.pack('>B', props) + self.sequence.encode('ascii')
+
+class ProteinBlock(Block):
+    block_id = 21
+    block_name = 'protein'
+
+    # This block is undocumented.  I attempted to reverse-engineer the file 
+    # format from some example files.  Some information might be unavailable.
+
+    def __init__(self):
+        self.props = None
+        self.sequence = None
+
+    def __repr_attrs__(self):
+        if len(self.sequence) > 32:
+            return f"sequence='{self.sequence[:16]}...{self.sequence[-16:]}'"
+        else:
+            return f"sequence='{self.sequence}'"
+
+    @classmethod
+    def from_bytes(cls, bytes):
+        block = cls()
+
+        # I don't know what the 'props' byte means.  In DNA blocks, there is an 
+        # corresponding byte that encodes a bit-field specifying a few 
+        # properties of the DNA, but those same properties wouldn't apply to 
+        # proteins.
+        block.props = bytes[0]
+        block.sequence = bytes[1:].decode('ascii')
+
+        return block
+
+    def to_bytes(self):
+        return struct.pack('>B', self.props or 0) \
+                + self.sequence.encode('ascii')
 
 class CompressedDnaBlock(UnparsedBlock):
     block_id = 1

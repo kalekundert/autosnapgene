@@ -1,7 +1,26 @@
 #!/usr/bin/env python3
 
 from . import parser
+from docopt import docopt
 from pathlib import Path
+
+commands = {}
+
+def command(f):
+    commands[f.__name__] = f
+    return f
+
+def parse_cli(main=None, **kwargs):
+    import inspect
+    from textwrap import dedent
+
+    if main is None:
+        frame = inspect.stack()[1]
+        main = globals()[frame.function]
+
+    return docopt(dedent(main.__doc__.format(**kwargs)))
+
+
 
 def main():
     """\
@@ -11,15 +30,60 @@ def main():
         autosnapgene <command> [<args>...] [options]
 
     Commands:
-        trace
-        history
+        {commands}
     """
     import sys
-    if len(sys.argv) > 1 and sys.argv[1] in globals():
-        return globals()[sys.argv[1]]()
+    if len(sys.argv) > 1 and sys.argv[1] in commands:
+        return commands[sys.argv[1]]()
     else:
-        parse_cli()
+        parse_cli(commands='\n'.join(commands))
 
+@command
+def seq():
+    """\
+    Query or edit the sequence represented by a SnapGene file.
+
+    Usage:
+        autosnapgene seq get <dna_path>
+        autosnapgene seq set <dna_path> <seq> [-o <dna_path>]
+        autosnapgene seq upper <dna_path> [-o <dna_path>]
+        autosnapgene seq lower <dna_path> [-o <dna_path>]
+
+    Options:
+        -o --out <dna_path>
+            Save the modified file to the given path, and leave the input file 
+            unmodified.  The default is to overwrite the input file.
+
+    """
+
+    # - Need to think about CLI for get/set, topology/strandedness/methylation
+    # - Upper/lower
+    # - Also need to make setters in SnapGene class work is the block doesn't 
+    #   already exist.
+
+    args = parse_cli()
+    dna = parser.parse(args['<dna_path>'])
+
+    if args['get']:
+        print(dna.sequence)
+
+    if args['set']:
+        dna.sequence = args['<seq>']
+        dna.write(args['--out'])
+
+    if args['upper']:
+        dna.sequence = dna.sequence.upper()
+        dna.write(args['--out'])
+
+    if args['lower']:
+        dna.sequence = dna.sequence.lower()
+        dna.write(args['--out'])
+
+@command
+def info():
+    pass
+
+@command
 def trace():
     """\
     Add, remove, or query sequencing traces within a SnapGene file.
@@ -65,6 +129,7 @@ def trace():
     if args['extract']:
         dna.extract_traces(args['<out_dir>'])
 
+@command
 def history():
     """\
     Remove all history from the given SnapGene file.
@@ -81,17 +146,5 @@ def history():
     if args['clear']:
         dna.clear_history()
         dna.write(args['--out'])
-
-
-def parse_cli(main=None):
-    import inspect
-    from docopt import docopt
-    from textwrap import dedent
-
-    if main is None:
-        frame = inspect.stack()[1]
-        main = globals()[frame.function]
-
-    return docopt(dedent(main.__doc__))
 
 
