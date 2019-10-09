@@ -220,7 +220,83 @@ class SnapGene:
     # Features
 
     def get_features(self):
-        return self.find_block(FeaturesBlock).features
+        """
+        Return a list of all the features in this sequence.
+        """
+        try:
+            return self.find_block(FeaturesBlock).features
+        except BlockNotFound:
+            return []
+
+    def get_feature(self, name):
+        """
+        Return the feature with the given name.
+
+        If multiple features have the given name, only the first one 
+        encountered will be returned.  A ValueError will be raised if no 
+        feature with the given name can be found.
+        """
+        for feat in self.features:
+            if feat.name == name:
+                return feat
+
+        raise ValueError(f"no feature named '{name}'")
+
+    def count_features(self):
+        """
+        Return the number of features in this sequence.
+        """
+        return len(self.features)
+
+    def add_feature(self, feature):
+        """
+        Add the given feature to the sequence.
+
+        The argument should be a Feature instance.  Colors and positions are 
+        specified as segments, which you can provide by filling in the 
+        `segments` attribute of the Feature instance with FeatureSegments 
+        instances.
+        """
+        block = self.find_or_make_block(FeaturesBlock)
+        feature.id = block.next_id
+        block.features.append(feature)
+
+    def remove_feature(self, name):
+        """
+        Remove the feature with the given name from this sequence.
+
+        Only the feature annotation is removed; the sequence corresponding to 
+        the feature remains.  If no feature with the given name can be found, a 
+        ValueError is raised.
+        """
+        try:
+            block = self.find_block(FeaturesBlock)
+        except BlockNotFound:
+            raise ValueError(f"no feature named '{name}'")
+
+        found_name = False
+        for feat in block.features[:]:
+            if feat.name == name:
+                block.features.remove(feat)
+                found_name = True
+
+        if not found_name:
+            raise ValueError(f"no feature named '{name}'")
+
+        # Make the id numbers contiguous.  I don't think this is necessary, but 
+        # it seems like the right thing to do.
+
+        for new_id, feat in enumerate(block.features):
+            feat.id = new_id
+
+    def clear_features(self):
+        """
+        Remove all features from the sequence.
+        """
+        self.remove_block(FeaturesBlock)
+
+    def extract_features(self):
+        raise NotImplementedError
 
     # Notes
 
@@ -568,6 +644,14 @@ class SnapGene:
                 path = dir / f'{meta.name}{suffix}.ztr'
                 path.write_bytes(trace_block.bytes)
 
+    # Primers
+
+    # add_primer
+    # remove_primer
+    # clear_primers
+    # count_primers
+    # extract_primers
+    
     # History
 
     def clear_history(self):
@@ -593,18 +677,6 @@ class SnapGene:
 
     def set_export_version(self, value):
         self.find_block(HeaderBlock).export_version = value
-
-    # add_primer
-    # remove_primer
-    # clear_primers
-    # count_primers
-    # extract_primers
-    
-    # add_feature
-    # remove_feature
-    # clear_features
-    # count_features
-    # extract_features
 
     @property
     def _this_seq(self):
