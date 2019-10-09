@@ -6,7 +6,7 @@ from pathlib import Path
 
 EX = Path(__file__).parent / 'examples'
 
-def test_examples(parse_and_write):
+def test_getters(parse_and_write):
     for dna in parse_and_write('puc19_bsai_abc.dna'):
         assert dna.count_traces() == count_seq_blocks(dna) == 3
         assert dna.trace_names == [

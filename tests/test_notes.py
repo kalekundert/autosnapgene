@@ -62,13 +62,15 @@ def test_to_bytes():
 <Created>2012.6.28</Created>
 </Notes>''')
 
+    # The subelements will be sorted by the order they appear in
+    # `NotesBlock.xml_subtag_defs`.
     notes.is_confirmed_experimentally = True
     assert notes.to_bytes() == xml('''\
 <Notes>
 <Type>Natural</Type>
 <Description>&lt;html&gt;</Description>
-<Created>2012.6.28</Created>
 <ConfirmedExperimentally>1</ConfirmedExperimentally>
+<Created>2012.6.28</Created>
 </Notes>''')
 
     del notes.type

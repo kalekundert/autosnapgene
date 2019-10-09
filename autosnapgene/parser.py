@@ -5,6 +5,7 @@ import autoprop
 import arrow
 import xml.etree.ElementTree as etree
 import html
+import textwrap
 from pathlib import Path
 from more_itertools import one
 
@@ -128,7 +129,7 @@ class SnapGene:
         try:
             return self.find_block(cls)
         except BlockNotFound:
-            return self.make_block()
+            return self.make_block(cls)
 
     def remove_blocks(self, cls):
         self.blocks = [x for x in self.blocks if not isinstance(x, cls)]
@@ -216,25 +217,10 @@ class SnapGene:
     def set_protein_sequence(self, value):
         self.find_or_make_block(ProteinBlock).sequence = value
 
-    # Header
-    
-    def get_file_type(self):
-        return self.find_block(HeaderBlock).file_type
+    # Features
 
-    def set_file_type(self, value):
-        self.find_block(HeaderBlock).file_type = value
-
-    def get_import_version(self):
-        return self.find_block(HeaderBlock).import_version
-
-    def set_import_version(self, value):
-        self.find_block(HeaderBlock).import_version = value
-
-    def get_export_version(self):
-        return self.find_block(HeaderBlock).export_version
-
-    def set_export_version(self, value):
-        self.find_block(HeaderBlock).export_version = value
+    def get_features(self):
+        return self.find_block(FeaturesBlock).features
 
     # Notes
 
@@ -588,6 +574,26 @@ class SnapGene:
         self.remove_blocks(HistoryBlock)
         self.remove_blocks(HistoryNodeBlock)
 
+    # File format
+    
+    def get_file_type(self):
+        return self.find_block(HeaderBlock).file_type
+
+    def set_file_type(self, value):
+        self.find_block(HeaderBlock).file_type = value
+
+    def get_import_version(self):
+        return self.find_block(HeaderBlock).import_version
+
+    def set_import_version(self, value):
+        self.find_block(HeaderBlock).import_version = value
+
+    def get_export_version(self):
+        return self.find_block(HeaderBlock).export_version
+
+    def set_export_version(self, value):
+        self.find_block(HeaderBlock).export_version = value
+
     # add_primer
     # remove_primer
     # clear_primers
@@ -604,9 +610,289 @@ class SnapGene:
     def _this_seq(self):
         return f"'{self.input_path}'" if self.input_path else "this sequence"
 
+class Xml:
+    """
+    A class that can read/write its attributes to/from XML.
+    """
+    xml_tag = None
+    xml_subtag_defs = []
+    xml_attrib_defs = []
+    xml_repr_attrs = []
+
+    class TextTag:
+
+        @staticmethod
+        def from_xml(element):
+            return element.text
+
+        @staticmethod
+        def to_xml(element, value):
+            element.text = value
+
+    class BoolTag:
+
+        @staticmethod
+        def from_xml(element):
+            return {'0': False, '1': True}[element.text]
+
+        @staticmethod
+        def to_xml(element, value):
+            element.text = str(int(value))
+
+    class DateTag:
+
+        @staticmethod
+        def from_xml(element):
+            return arrow.get(element.text, 'YYYY.M.D')
+
+        @staticmethod
+        def to_xml(element, value):
+            element.text = value.format('YYYY.M.D')
+
+    class HtmlTag(TextTag):
+
+        # I made this class because I thought that I'd have to specially escape 
+        # and unescape HTML content, but it turns out that the XML library 
+        # takes care of that automatically.  So this class ends up being 
+        # functionally the same as TextTag.  I'm keeping it because it's still 
+        # semantic.
+
+        pass
+
+
+    class AppendListTag:
+        # For when the same tag may appear multiple times, and each appearance 
+        # should add the value to a growing list.
+
+        @staticmethod
+        def setattr(obj, name, value):
+            if not hasattr(obj, name):
+                setattr(obj, name, [value])
+            else:
+                getattr(obj, name).append(value)
+
+    class UpdateDictTag:
+
+        @staticmethod
+        def setattr(obj, name, value):
+            if not hasattr(obj, name):
+                setattr(obj, name, value)
+            else:
+                getattr(obj, name).update(value)
+
+
+
+    class TextAttrib:
+
+        @staticmethod
+        def from_str(str):
+            return str
+
+        @staticmethod
+        def to_str(value):
+            return value
+
+    class BoolAttrib:
+
+        @staticmethod
+        def from_str(str):
+            return {'0': False, '1': True}[str]
+
+        @staticmethod
+        def to_str(value):
+            return str(int(value))
+
+    class EnumAttrib:
+        value_from_str = {}
+
+        def __init_subclass__(cls):
+            cls.str_from_value = {v: k for k, v in cls.value_from_str.items()}
+
+        @classmethod
+        def from_str(cls, str):
+            return cls.value_from_str[str]
+
+        @classmethod
+        def to_str(cls, value):
+            return cls.str_from_value[value]
+
+    class IntAttrib:
+
+        @staticmethod
+        def from_str(str):
+            return int(str)
+
+        @staticmethod
+        def to_str(value):
+            return str(value)
+
+    class FloatAttrib:
+
+        @staticmethod
+        def from_str(str):
+            return float(str)
+
+        @staticmethod
+        def to_str(value):
+            return str(value)
+
+    def __init_subclass__(cls):
+        super().__init_subclass__()
+
+        def find_dups(xs):
+            seen = set()
+            dups = set()
+
+            for x in xs:
+                if x in seen:
+                    dups.add(x)
+                seen.add(x)
+
+            return dups
+
+        def check_dups(xs):
+            dups = find_dups(xs)
+            if dups:
+                dups_str = '\n    '.join(dups)
+                raise ValueError("The following attributes are defined more than once:\n    {dups_str}")
+
+        cls._subtag_parsers_by_name = {
+                name: (tag, parser)
+                for name, tag, parser in cls.xml_subtag_defs
+        }
+        cls._subtag_parsers_by_tag = {
+                tag: (name, parser)
+                for name, tag, parser in cls.xml_subtag_defs
+        }
+        cls._attrib_parsers_by_name = {
+                name: (attrib, parser)
+                for name, attrib, parser in cls.xml_attrib_defs
+        }
+        cls._attrib_parsers_by_attrib = {
+                attrib: (name, parser)
+                for name, attrib, parser in cls.xml_attrib_defs
+        }
+        cls._subtag_names = [
+                name for name, _, _ in cls.xml_subtag_defs
+        ]
+        cls._attrib_names = [
+                name for name, _, _ in cls.xml_attrib_defs
+        ]
+        cls._defined_names = cls._subtag_names + cls._attrib_names
+
+        check_dups(cls._defined_names)
+
+    def __repr_attrs__(self):
+        if not self.repr_attrs:
+            raise NotImplementedError
+
+        return ' '.join(
+                f'{k}="{getattr(self, k)}"'
+                for k in self.repr_attrs
+                if hasattr(self, k)
+        )
+
+    def __getattr__(self, name):
+        if name in self._defined_names:
+            raise AttributeError(f"'{name}' not defined for {self.__class__.__name__}.")
+
+        else:
+            did_you_mean = '\n    '.join(self._defined_names)
+            raise AttributeError(f"'{name}' is not a valid attribute, did you mean:\n    {did_you_mean}")
+
+    def __delattr__(self, name):
+        try:
+            super().__delattr__(name)
+        except AttributeError:
+            if name in self._defined_names:
+                raise AttributeError(f"'{name}' not defined for {self.__class__.__name__}.")
+
+            else:
+                did_you_mean = '\n    '.join(self._defined_names)
+                raise AttributeError(f"'{name}' is not a valid attribute, did you mean:\n    {did_you_mean}")
+
+    def __eq__(self, other):
+        undef = object()
+
+        return all([
+            getattr(self, x, undef) == getattr(other, x, undef)
+            for x in self._defined_names
+        ])
+
+
+    @classmethod
+    def from_bytes(cls, bytes):
+        xml = bytes.decode('utf8')
+        root = etree.fromstring(xml)
+        return cls.from_xml(root)
+
+    @classmethod
+    def from_xml(cls, root):
+        if not cls.xml_tag:
+            raise NotImplementedError(f"'{cls.__qualname__}.xml_tag' not defined.")
+        if root.tag != cls.xml_tag:
+            raise ValueError(f"expected <{self.xml_tag}>, but got {root}")
+
+        self = cls()
+
+        for attrib in root.attrib:
+            name, parser = cls._attrib_parsers_by_attrib[attrib]
+            value = parser.from_str(root.attrib[attrib])
+            setattr(self, name, value)
+
+        for element in root:
+            name, parser = cls._subtag_parsers_by_tag[element.tag]
+            value = parser.from_xml(element)
+            getattr(parser, 'setattr', setattr)(self, name, value)
+
+        return self
+
+    def to_bytes(self):
+        root = self.to_xml()
+        return etree.tostring(root)
+
+    def to_xml(self):
+        from inspect import signature
+
+        if not self.xml_tag:
+            raise NotImplementedError("'{self.__class__.__qualname__}.xml_tag' not defined.")
+
+        root = etree.Element(self.xml_tag)
+
+        for name in self._attrib_names:
+            if not hasattr(self, name): continue
+            attrib, parser = self._attrib_parsers_by_name[name]
+            value = getattr(self, name)
+            root.attrib[attrib] = parser.to_str(value)
+
+        for name in self._subtag_names:
+            if not hasattr(self, name): continue
+            tag, parser = self._subtag_parsers_by_name[name]
+            sig = signature(parser.to_xml)
+
+            # For most parsers, it's convenient if we take care of making the 
+            # element.  But a few of the more complex parsers need to customize 
+            # this process.  So we basically overload the 'to_xml()' method and 
+            # inspect the signature to see which behavior the parser wants.
+            # 
+            # Note that we could've gotten similar behavior by having a 
+            # superclass method that creates the element and calls a 
+            # overload-able method to customize it.  But for aesthetic reasons, 
+            # I don't want to require the parsers to inherit from anything.
+
+            if len(sig.parameters) == 2:
+                element = etree.SubElement(root, tag)
+                parser.to_xml(element, getattr(self, name))
+            else:
+                parser.to_xml(root, tag, getattr(self, name))
+
+        return root
+
 class Block:
 
     def __init_subclass__(cls):
+        super().__init_subclass__()
+
         if hasattr(cls, 'block_id'):
             block_ids[cls.block_name] = cls.block_id
             block_classes[cls.block_id] = cls
@@ -776,49 +1062,9 @@ class PrimerBlock(UnparsedBlock):
     block_id = 5
     block_name = 'primers'
 
-class NotesBlock(Block):
+class NotesBlock(Xml, Block):
     block_id = 6
     block_name = 'notes'
-
-    class TextTag:
-
-        @staticmethod
-        def from_xml(element):
-            return element.text
-
-        @staticmethod
-        def to_xml(element, value):
-            element.text = value
-
-    class BoolTag:
-
-        @staticmethod
-        def from_xml(element):
-            return {'0': False, '1': True}[element.text]
-
-        @staticmethod
-        def to_xml(element, value):
-            element.text = str(int(value))
-
-    class DateTag:
-
-        @staticmethod
-        def from_xml(element):
-            return arrow.get(element.text, 'YYYY.M.D')
-
-        @staticmethod
-        def to_xml(element, value):
-            element.text = value.format('YYYY.M.D')
-
-    class HtmlTag(TextTag):
-
-        # I made this class because I thought that I'd have to specially escape 
-        # and unescape HTML content, but it turns out that the XML library 
-        # takes care of that automatically.  So this class ends up being 
-        # functionally the same as TextTag.  I'm keeping it because it's still 
-        # semantic.
-
-        pass
 
     class ReferencesTag:
 
@@ -835,132 +1081,36 @@ class NotesBlock(Block):
                 child = ref.to_xml()
                 element.append(child)
 
-    attr_defs = [
-            ('uuid', 'UUID', TextTag),
-            ('type', 'Type', TextTag),
-            ('custom_map_label', 'CustomMapLabel', TextTag),
-            ('use_custom_map_label', 'UseCustomMapLabel', BoolTag),
-            ('is_confirmed_experimentally', 'ConfirmedExperimentally', BoolTag),
-            ('description', 'Description', HtmlTag),
-            ('date_created', 'Created', DateTag),
-            ('date_last_modified', 'LastModified', DateTag),
-            ('accession_number', 'AccessionNumber', TextTag),
-            ('code_number', 'CodeNumber', TextTag),
-            ('author', 'CreatedBy', TextTag),
-            ('organism', 'Organism', TextTag),
-            ('sequence_class', 'SequenceClass', TextTag),
-            ('transformed_into', 'TransformedInto', TextTag),
-            ('comments', 'Comments', HtmlTag),
+    xml_tag = 'Notes'
+    xml_subtag_defs = [
+            ('uuid', 'UUID', Xml.TextTag),
+            ('type', 'Type', Xml.TextTag),
+            ('author', 'CreatedBy', Xml.TextTag),
+            ('description', 'Description', Xml.HtmlTag),
+            ('comments', 'Comments', Xml.HtmlTag),
             ('references', 'References', ReferencesTag),
+            ('transformed_into', 'TransformedInto', Xml.TextTag),
+            ('is_confirmed_experimentally', 'ConfirmedExperimentally', Xml.BoolTag),
+            ('organism', 'Organism', Xml.TextTag),
+            ('accession_number', 'AccessionNumber', Xml.TextTag),
+            ('code_number', 'CodeNumber', Xml.TextTag),
+            ('sequence_class', 'SequenceClass', Xml.TextTag),
+            ('custom_map_label', 'CustomMapLabel', Xml.TextTag),
+            ('use_custom_map_label', 'UseCustomMapLabel', Xml.BoolTag),
+            ('date_created', 'Created', Xml.DateTag),
+            ('date_last_modified', 'LastModified', Xml.DateTag),
     ]
-    parsers_by_attr = {
-            attr: (tag, parser)
-            for attr, tag, parser in attr_defs
-    }
-    parsers_by_tag = {
-            tag: (attr, parser)
-            for attr, tag, parser in attr_defs
-    }
+    xml_repr_attrs = 'type', 'created_by', 'last_modified'
 
-    def __init__(self):
-        self.attrs = {}
-
-    def __repr_attrs__(self):
-        attrs = 'type', 'created_by', 'last_modified'
-        return ' '.join(
-                f'{k}="{getattr(self, k)}"'
-                for k in attrs
-                if k in self.attrs
-        )
-
-    def __getattr__(self, attr):
-        if attr in self.attrs:
-            return self.attrs[attr]
-
-        elif attr in self.parsers_by_attr:
-            raise AttributeError(f"note '{attr}' not defined for this sequence.")
-
-        else:
-            did_you_mean = '\n    '.join(self.parsers_by_attr)
-            raise AttributeError(f"unknown note '{attr}', did you mean:\n    {did_you_mean}")
-
-    def __setattr__(self, attr, value):
-        if attr in self.parsers_by_attr:
-            self.attrs[attr] = value
-        else:
-            super().__setattr__(attr, value)
-
-    def __delattr__(self, attr):
-        if attr in self.attrs:
-            del self.attrs[attr]
-
-        elif attr in self.parsers_by_attr:
-            raise AttributeError(f"note '{attr}' not defined for this sequence.")
-
-        else:
-            did_you_mean = '\n    '.join(self.parsers_by_attr)
-            raise AttributeError(f"unknown note '{attr}', did you mean:\n    {did_you_mean}")
-
-
-
-    @classmethod
-    def from_bytes(cls, bytes):
-        block = cls()
-
-        xml = bytes.decode('utf8')
-        root = etree.fromstring(xml)
-
-        for element in root:
-            attr, parser = cls.parsers_by_tag[element.tag]
-            block.attrs[attr] = parser.from_xml(element)
-
-        return block
-
-    def to_bytes(self):
-        root = etree.Element('Notes')
-
-        for attr in self.attrs:
-            tag, parser = self.parsers_by_attr[attr]
-            element = etree.SubElement(root, tag)
-            parser.to_xml(element, self.attrs[attr])
-
-        return etree.tostring(root)
-
-class Reference:
-
-    def __init__(self):
-        self.title = None
-        self.pubmed_id = None
-        self.journal = None
-        self.authors = None
-
-    def __repr__(self):
-        return f"<Reference id={self.id} name='{self.name}' is_trace={int(self.is_trace)} sort_order={self.sort_order}>"
-
-    @classmethod
-    def from_xml(cls, element):
-        unescape = lambda x: html.unescape(x) if x is not None else x
-
-        ref = cls()
-        ref.title = unescape(element.attrib.get('title'))
-        ref.pubmed_id = element.attrib.get('pubMedID')
-        ref.journal = unescape(element.attrib.get('journal'))
-        ref.authors = unescape(element.attrib.get('authors'))
-
-        return ref
-
-    def to_xml(self):
-        def attr(k, v, f=lambda x: x):
-            if v is not None:
-                attrs[k] = f(v)
-
-        attrs = {}
-        attr('title', self.title, html.escape)
-        attr('pubMedID', self.pubmed_id)
-        attr('journal', self.journal, html.escape)
-        attr('authors', self.authors, html.escape)
-
-        return etree.Element('Reference', attrs)
+class Reference(Xml):
+    xml_tag = 'Reference'
+    xml_repr_attrs = 'pubmed_id',
+    xml_attrib_defs = [
+            ('title', 'title', Xml.TextAttrib),
+            ('pubmed_id', 'pubMedID', Xml.TextAttrib),
+            ('journal', 'journal', Xml.TextAttrib),
+            ('authors', 'authors', Xml.TextAttrib),
+    ]
 
 
 class HistoryBlock(UnparsedBlock):
@@ -975,9 +1125,186 @@ class PropertiesBlock(UnparsedBlock):
     block_id = 8
     block_name = 'properties'
 
-class FeaturesBlock(UnparsedBlock):
+@autoprop
+class FeaturesBlock(Xml, Block):
     block_id = 10
     block_name = 'features'
+
+    # I'm not totally sure whats up with the id numbers in this block.  They 
+    # aren't mentioned in the 2015 spec...
+
+    class FeatureTag(Xml.AppendListTag):
+
+        @staticmethod
+        def from_xml(element):
+            return Feature.from_xml(element)
+
+        @staticmethod
+        def to_xml(parent, tag, features):
+            for feature in features:
+                subelement = feature.to_xml()
+                parent.append(subelement)
+
+    xml_tag = 'Features'
+    xml_subtag_defs = [
+            ('features', 'Feature', FeatureTag),
+    ]
+    xml_attrib_defs = [
+            ('_next_id', 'nextValidID', Xml.IntAttrib),
+    ]
+
+    def __repr_attrs__(self):
+        feat_names = textwrap.shorten(
+                ', '.join(x.name for x in self.features),
+                width=32,
+                placeholder='...',
+        )
+        return f"features='{feat_names}'"
+
+    @classmethod
+    def from_bytes(cls, bytes):
+        print(bytes)
+        return super().from_bytes(bytes)
+
+    def to_xml(self):
+        self._next_id = len(self.features)
+        return super().to_xml()
+
+    def get_next_id(self):
+        return len(self.features)
+
+
+class Feature(Xml):
+
+    class SegmentTag(Xml.AppendListTag):
+
+        @staticmethod
+        def from_xml(element):
+            return FeatureSegment.from_xml(element)
+
+        @staticmethod
+        def to_xml(parent, tag, segments):
+            for segment in segments:
+                e = segment.to_xml()
+                parent.append(e)
+
+    class QualifierTag(Xml.UpdateDictTag):
+        data_types = {
+                'int': int,
+                'text': str,
+        }
+        data_formats = {v: k for k, v in data_types.items()}
+
+        @classmethod
+        def from_xml(cls, element):
+            name = element.attrib['name']
+
+            def get_value(sub):
+                # The spec doesn't say, but I assume there must be exactly one 
+                # datum per tag.
+                assert len(sub.attrib) == 1
+
+                key, value = sub.attrib.popitem()
+                return cls.data_types[key](value)
+
+            if len(element) == 1:
+                value = get_value(element.find('V'))
+            else:
+                value = [get_value(x) for x in element.findall('V')]
+
+            return {name: value}
+
+        @classmethod
+        def to_xml(cls, parent, tag, values):
+            for name, value in values.items():
+                q = etree.SubElement(parent, tag)
+                q.attrib['name'] = str(name)
+
+                v = etree.SubElement(q, 'V')
+                data_format = cls.data_formats[type(value)]
+                v.attrib[data_format] = str(value)
+
+    class DirectionalityAttrib(Xml.EnumAttrib):
+        value_from_str = {
+                '0': 'none',
+                '1': 'forward',
+                '2': 'backward',
+                '3': 'bidirectional',
+        }
+
+    class CleavageArrowsAttrib:
+
+        @staticmethod
+        def from_str(str):
+            return [int(x) for x in str.split(',')]
+
+        @staticmethod
+        def to_str(value):
+            return ','.join(str(x) for x in value)
+
+    xml_tag = 'Feature'
+    xml_repr_attrs = 'name', 'type'
+    xml_subtag_defs = [
+            ('segments', 'Segment', SegmentTag),
+            ('qualifiers', 'Q', QualifierTag),
+    ]
+    xml_attrib_defs = [
+            ('id', 'recentID', Xml.IntAttrib),
+            ('name', 'name', Xml.TextAttrib),
+            ('type', 'type', Xml.TextAttrib),
+            ('directionality', 'directionality', DirectionalityAttrib),
+            ('reading_frame', 'readingFrame', Xml.IntAttrib),
+            ('cleavage_arrows', 'cleavageArrows', CleavageArrowsAttrib),
+            ('allow_segment_overlaps', 'allowSegmentOverlaps', Xml.BoolAttrib),
+            ('swapped_segment_numbering', 'swappedSegmentNumbering', Xml.BoolAttrib),
+            ('max_run_on', 'maxRunOn', Xml.IntAttrib),
+            ('max_fused_run_on', 'maxFusedRunOn', Xml.IntAttrib),
+            ('detection_mode', 'detectionMode', Xml.TextAttrib),
+
+            # Translation-related attributes:
+            ('genetic_code_id', 'geneticCode', Xml.TextAttrib),
+            ('first_codon_met', 'translateFirstCodonAsMet', Xml.BoolAttrib),
+            ('consecutive_translation_numbering', 'consecutiveTranslationNumbering', Xml.BoolAttrib),
+            ('translated_mw', 'translationMW', Xml.FloatAttrib),
+            ('hits_stop_codon', 'hitsStopCodon', Xml.BoolAttrib),
+    ]
+
+@autoprop
+class FeatureSegment(Xml):
+
+    class RangeAttrib:
+
+        @staticmethod
+        def from_str(str):
+            return tuple(int(x) for x in str.split('-'))
+
+        @staticmethod
+        def to_str(value):
+            return '-'.join(str(x) for x in value)
+
+    xml_tag = 'Segment'
+    xml_attrib_defs = [
+            ('name', 'name', Xml.TextAttrib),
+            ('range', 'range', RangeAttrib),
+            ('display', 'type', Xml.TextAttrib),
+            ('color', 'color', Xml.TextAttrib),
+            ('is_translated', 'translated', Xml.BoolAttrib),
+    ]
+
+    def __repr_attrs__(self):
+        return f"type='{self.type}' range='{self.begin}-{self.end}'"
+
+    def get_begin(self):
+        return self.range[0]
+
+    def set_begin(self, value):
+        self.range = value, self.range[1]
+
+    def get_end(self):
+        return self.range[1]
+
+    def set_end(self, value):
+        self.range = self.range[0], value
 
 class AlignmentsBlock(Block):
     block_id = 17
@@ -1015,42 +1342,30 @@ class AlignmentsBlock(Block):
 
         return etree.tostring(root)
 
-class AlignmentMetadata:
+class AlignmentMetadata(Xml):
 
-    def __init__(self):
-        self.id = None
-        self.name = None
-        self.is_trace = None
-        self.sort_order = None
+    class TrimmedRangeAttrib:
+
+        @staticmethod
+        def from_str(str):
+            return tuple(int(x) for x in str.split('..'))
+
+        @staticmethod
+        def to_str(value):
+            return '..'.join(str(x) for x in value)
+
+    xml_tag = 'Sequence'
+    xml_attrib_defs = [
+            ('id', 'ID', Xml.IntAttrib),
+            ('name', 'name', Xml.TextAttrib),
+            ('is_visible', 'use', Xml.BoolAttrib),
+            ('is_trace', 'isTrace', Xml.BoolAttrib),
+            ('sort_order', 'sortOrder', Xml.IntAttrib),
+            ('trimmed_range', 'trimmedRange', TrimmedRangeAttrib),
+    ]
 
     def __repr__(self):
         return f"<AlignmentMetadata id={self.id} name='{self.name}' is_trace={int(self.is_trace)} sort_order={self.sort_order}>"
-
-    def __eq__(self, other):
-        return all([
-            self.id == other.id,
-            self.name == other.name,
-            self.is_trace == other.is_trace,
-            self.sort_order == other.sort_order,
-        ])
-
-    @classmethod
-    def from_xml(cls, element):
-        seq = cls()
-        seq.id = int(element.attrib.get('ID'))
-        seq.name = element.attrib.get('name')
-        seq.is_trace = bool(element.attrib.get('isTrace'))
-        seq.sort_order = int(element.attrib.get('sortOrder'))
-        return seq
-
-    def to_xml(self):
-        return etree.Element('Sequence', {
-            'ID': str(self.id),
-            'name': self.name,
-            'isTrace': str(int(self.is_trace)),
-            'sortOrder': str(self.sort_order),
-        })
-
 
 class AlignedSequenceBlock(Block):
     block_id = 16
@@ -1100,5 +1415,6 @@ class SnapGeneError(Exception):
 
     def __str__(self):
         return self.message.format(path=self.path)
+
 class BlockNotFound(AttributeError):
     pass
