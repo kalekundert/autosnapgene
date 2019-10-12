@@ -6,7 +6,7 @@ before_install:
   # https://launchpad.net/ubuntu/+source/staden-io-lib
   #- sudo add-apt-repository universe -y
   #- sudo apt update
-  - sudo apt-get install -y staden-io-lib
+  - sudo apt-get install -y staden-io-lib-utils
   - which convert_trace
   #- sudo apt-get install -y staden-io-lib-utils
 
