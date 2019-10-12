@@ -4,9 +4,11 @@ python:
 
 before_install:
   # https://launchpad.net/ubuntu/+source/staden-io-lib
-  - sudo add-apt-repository universe -y
-  - sudo apt update
-  - sudo apt-get install -y staden-io-lib-utils
+  #- sudo add-apt-repository universe -y
+  #- sudo apt update
+  - sudo apt-get install -y staden-io-lib
+  - which convert_trace
+  #- sudo apt-get install -y staden-io-lib-utils
 
 install:
   # Install io_lib, which is neccesary for adding traces.
@@ -17,12 +19,14 @@ install:
   #- make
 
   - pip install -U coverage pytest pytest-cov python-coveralls
-  # The -e is necessary for coverage to work.  Otherwise it seems to get 
-  # confused, maybe by looking for the paths in the repository while the 
-  # paths in site-packages actually run.  I'm not totally sure.
-  - pip install -e .
+  # The --symlink is necessary for coverage to work.  Otherwise it seems to get 
+  # confused, maybe by looking for the paths in the repository while the paths 
+  # in site-packages actually run.  I'm not totally sure.
+  - flit install --symlink
+
 script: 
-  - py.test tests --cov autosnapgene
+  - pytest tests --cov autosnapgene
+
 after_success:
   - coveralls
 
