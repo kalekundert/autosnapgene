@@ -4,6 +4,7 @@ import pytest
 import autosnapgene as snap
 from pathlib import Path
 from inspect import getmembers, signature
+from pprint import pprint
 
 EX = Path(__file__).parent / 'examples'
 
