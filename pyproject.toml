@@ -6,6 +6,7 @@ build-backend = "flit.buildapi"
 module = "autosnapgene"
 author = "Kale Kundert"
 author-email = "kale@thekunderts.net"
+requires-python = "~=3.7"
 requires = [
   'docopt',
   'arrow',
