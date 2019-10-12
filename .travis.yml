@@ -11,7 +11,7 @@ install:
   # The --symlink is necessary for coverage to work.  Otherwise it seems to get 
   # confused, maybe by looking for the paths in the repository while the paths 
   # in site-packages actually run.  I'm not totally sure.
-  - flit install
+  - flit install --symlink
 
 script: 
   - pytest tests --cov autosnapgene
