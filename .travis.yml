@@ -2,6 +2,7 @@ language: python
 python:
     - "3.6"
 install:
+    - sudo apt-get install staden-io-lib
     - pip install -U coverage pytest pytest-cov python-coveralls
     # The -e is necessary for coverage to work.  Otherwise it seems to get 
     # confused, maybe by looking for the paths in the repository while the 
