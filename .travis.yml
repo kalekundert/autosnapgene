@@ -12,7 +12,6 @@ install:
   # confused, maybe by looking for the paths in the repository while the paths 
   # in site-packages actually run.  I'm not totally sure.
   - flit install
-  - ls -R
 
 script: 
   - pytest tests --cov autosnapgene
