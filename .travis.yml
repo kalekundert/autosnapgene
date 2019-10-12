@@ -5,7 +5,6 @@ python:
 before_install:
   # https://launchpad.net/ubuntu/+source/staden-io-lib
   - sudo apt-get install -y staden-io-lib-utils
-  - which convert_trace
 
 install:
   - pip install -U flit coverage pytest pytest-cov python-coveralls
@@ -13,6 +12,7 @@ install:
   # confused, maybe by looking for the paths in the repository while the paths 
   # in site-packages actually run.  I'm not totally sure.
   - flit install
+  - ls -R
 
 script: 
   - pytest tests --cov autosnapgene
