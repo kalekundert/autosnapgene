@@ -8,7 +8,9 @@ author = "Kale Kundert"
 author-email = "kale@thekunderts.net"
 requires = [
   'docopt',
+  'arrow',
   'autoprop',
+  'nonstdlib',
   'more_itertools',
 ]
 classifiers = [
