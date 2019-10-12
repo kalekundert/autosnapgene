@@ -1,16 +1,29 @@
 language: python
 python:
-    - "3.6"
+  - "3.6"
+
+before_install:
+  # https://launchpad.net/ubuntu/+source/staden-io-lib
+  - sudo add-apt-repository universe -y
+  - sudo apt update
+  - sudo apt-get install -y staden-io-lib-utils
+
 install:
-    - sudo apt-get install staden-io-lib
-    - pip install -U coverage pytest pytest-cov python-coveralls
-    # The -e is necessary for coverage to work.  Otherwise it seems to get 
-    # confused, maybe by looking for the paths in the repository while the 
-    # paths in site-packages actually run.  I'm not totally sure.
-    - pip install -e .
+  # Install io_lib, which is neccesary for adding traces.
+  #- wget https://github.com/jkbonfield/io_lib/releases/download/io_lib-1-14-11/io_lib-1.14.11.tar.gz
+  #- tar -xzf io_lib-1-14-11/io_lib-1.14.11.tar.gz
+  #- cd io_lib-1.14.11/
+  #- ./configure
+  #- make
+
+  - pip install -U coverage pytest pytest-cov python-coveralls
+  # The -e is necessary for coverage to work.  Otherwise it seems to get 
+  # confused, maybe by looking for the paths in the repository while the 
+  # paths in site-packages actually run.  I'm not totally sure.
+  - pip install -e .
 script: 
-    - py.test tests --cov autosnapgene
+  - py.test tests --cov autosnapgene
 after_success:
-    - coveralls
+  - coveralls
 
 
