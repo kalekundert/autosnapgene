@@ -3,16 +3,24 @@
 import pytest
 import autosnapgene as snap
 from pathlib import Path
-from inspect import getmembers
+from inspect import getmembers, signature
 
 EX = Path(__file__).parent / 'examples'
+
+def no_required_args(f):
+    # Don't count the self parameter.
+    non_self_params = list(signature(f).parameters.values())[1:]
+
+    for p in non_self_params:
+        if p.default == p.empty:
+            return False
+
+    return True
 
 snap_getters = [
         k
         for k, v in getmembers(snap.SnapGene)
-        if k.startswith('get_') and k not in {
-            'get_references',
-        }
+        if k.startswith('get_') and no_required_args(v)
 ]
 
 @pytest.mark.parametrize('getter', snap_getters)
@@ -44,5 +52,6 @@ def test_getters_same_after_write(getter, parse_and_write):
 
 def test_blocks_from_file():
     blocks = snap.blocks_from_file(EX / 't7_promoter.dna')
+    pprint(blocks)
     assert len(blocks) == 10
 

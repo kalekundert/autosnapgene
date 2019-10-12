@@ -3,6 +3,9 @@
 from . import parser
 from docopt import docopt
 from pathlib import Path
+from nonstdlib import indices_from_str
+import sys, os
+import textwrap
 
 commands = {}
 
@@ -10,7 +13,7 @@ def command(f):
     commands[f.__name__] = f
     return f
 
-def parse_cli(main=None, **kwargs):
+def parse_cli(main=None, argv=None, **kwargs):
     import inspect
     from textwrap import dedent
 
@@ -18,8 +21,29 @@ def parse_cli(main=None, **kwargs):
         frame = inspect.stack()[1]
         main = globals()[frame.function]
 
-    return docopt(dedent(main.__doc__.format(**kwargs)))
+    doc = dedent(main.__doc__.format(**kwargs))
+    return docopt(doc, argv=argv)
 
+def format_command_descriptions():
+    # Note that the docstrings are all indented, and will be de-dented before 
+    # rendering to the stdout.  That's why indent needs to be 8 and not 4.
+    indent_len, pad_len, line_len = 8, 2, 79
+    max_cmd_len = max(len(x) for x in commands)
+    desc_len = line_len - indent_len - pad_len - max_cmd_len
+
+    doc = ''
+    indent = ' ' * indent_len
+
+    for cmd, func in commands.items():
+        pad = ' ' * (pad_len + (max_cmd_len - len(cmd)))
+        desc = textwrap.shorten(
+                (func.__doc__ or '').split('\n')[0],
+                width=desc_len,
+                placeholder='...',
+        )
+        doc += f'{indent}{cmd}{pad}{desc}\n'
+
+    return doc.strip()
 
 
 def main():
@@ -36,7 +60,7 @@ def main():
     if len(sys.argv) > 1 and sys.argv[1] in commands:
         return commands[sys.argv[1]]()
     else:
-        parse_cli(commands='\n'.join(commands))
+        parse_cli(argv=['-h'], commands=format_command_descriptions())
 
 @command
 def seq():
@@ -53,14 +77,7 @@ def seq():
         -o --out <dna_path>
             Save the modified file to the given path, and leave the input file 
             unmodified.  The default is to overwrite the input file.
-
     """
-
-    # - Need to think about CLI for get/set, topology/strandedness/methylation
-    # - Upper/lower
-    # - Also need to make setters in SnapGene class work is the block doesn't 
-    #   already exist.
-
     args = parse_cli()
     dna = parser.parse(args['<dna_path>'])
 
@@ -80,8 +97,63 @@ def seq():
         dna.write(args['--out'])
 
 @command
-def info():
-    pass
+def feature():
+    """\
+    Add or remove features from a SnapGene file.
+
+    Usage:
+        autosnapgene features add <dna_path> <name> <seq> [options]
+        autosnapgene features remove <dna_path> <name> [-o <dna_path>]
+        autosnapgene features clear <dna_path> <seq> [-o <dna_path>]
+
+    Options:
+        -o --out <dna_path>
+            Save the modified file to the given path, and leave the input file 
+            unmodified.  The default is to overwrite the input file.
+
+        -c --color <color>
+            The color of the feature being added in HTML format, e.g. '#99ccff'
+
+        -t --type <type>
+            The type of feature to add.  Some common options are "CDS", "RBS", 
+            "promoter", "terminator", etc.
+
+        -n --note <desc>
+            A description of the feature being added.  If "-", the description 
+            will be read from stdin.
+            
+        -T --translate
+            Indicate that the feature being added should be translated.
+    """
+    args = parse_cli()
+    dna = parser.parse(args['<dna_path>'])
+
+    if args['add']:
+        feature = parser.Feature.from_segment()
+        feature.name = args['<name>']
+
+        if args['--color']:
+            feature.segment.color = args['--color']
+        if args['--type']:
+            feature.segment.type = args['--type']
+        if args['--translate']:
+            feature.segment.is_translated = True
+        if args['--note']:
+            if args['--note'] == '-':
+                feature.qualifiers = {'note': sys.stdin.read()}
+            else:
+                feature.qualifiers = {'note': args['--note']}
+
+        dna.write(args['--out'])
+
+    if args['remove']:
+        try: dna.remove_feature(args['<name>'])
+        except parser.FeatureNotFound: pass
+        dna.write(args['--out'])
+
+    if args['clear']:
+        dna.clear_features()
+        dna.write(args['--out'])
 
 @command
 def trace():
@@ -108,11 +180,11 @@ def trace():
     def apply_and_save(method):
         method()
         dna.write(args['--out'])
+
     def apply_ab1_and_save(method):
         for ab1 in args['<ab1_paths>']:
             method(Path(ab1))
         dna.write(args['--out'])
-
 
     if args['add']:
         apply_ab1_and_save(dna.add_trace)
@@ -139,6 +211,8 @@ def history():
 
     Options:
         -o --out <dna_path>
+            Save the modified file to the given path, and leave the input file 
+            unmodified.  The default is to overwrite the input file.
     """
     args = parse_cli()
     dna = parser.parse(args['<dna_path>'])
@@ -147,4 +221,68 @@ def history():
         dna.clear_history()
         dna.write(args['--out'])
 
+@command
+def info():
+    pass
 
+@command
+def debug():
+    """\
+    Various utilities for inspecting and debugging SnapGene files.
+
+    Usage:
+        autosnapgene debug list-blocks <dna_path>
+        autosnapgene debug dump-block <dna_path> (-I <id> | -i <i>) [-b]
+        autosnapgene debug remove-block <dna_path> (-I <id> | -i <i>) [-o <dna_path>]
+        autosnapgene debug parse <dna_path> [-o <dna_path>]
+
+    Options:
+        -o --out <dna_path>
+            Save the modified file to the given path, and leave the input file 
+            unmodified.  The default is to overwrite the input file.
+
+        -I --id <id>
+            Select blocks by id.  You can select multiple blocks by using 
+            commas and dashes, e.g. 1-3,5
+
+        -i --index <i>
+            Select blocks by index, starting from 0.  You can select multiple 
+            blocks by using commas and dashes, e.g. 1-3,5
+
+        -b --bytes
+            Dump block data in raw binary format, rather than in string format.  
+            This will produce suitable input for a hex editor.
+
+    """
+    args = parse_cli()
+    dna = parser.parse(args['<dna_path>'])
+
+    def is_specified(i, block):
+        if args['--id']:
+            return block.block_id in indices_from_str(args['--id'])
+        if args['--index']:
+            return i in indices_from_str(args['--index'])
+
+    if args['parse']:
+        dna.write(args['--out'])
+
+    if args['list-blocks']:
+        for i, block in enumerate(dna.blocks):
+            print(f"{i}: {block}")
+
+    if args['dump-block']:
+        for i, block in enumerate(dna.blocks):
+            if is_specified(i, block):
+                if args['--bytes']:
+                    fp = os.fdopen(sys.stdout.fileno(), 'wb')
+                    fp.write(block.block_bytes)
+                else:
+                    print(block.block_bytes)
+                    print()
+
+    if args['remove-block']:
+        dna.blocks = [
+                b for i, b in enumerate(dna.blocks)
+                if not is_specified(i, b)
+        ]
+        dna.write(args['--out'])

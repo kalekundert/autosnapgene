@@ -88,6 +88,29 @@ def test_getters_flag(parse_and_write):
         assert seg.display == 'standard'
         assert seg.is_translated == True
 
+@pytest.mark.parametrize(
+        'xml, expected', [
+            ('<Q name="codon_start"><V int="1"/></Q>', {
+                'codon_start': 1,
+            }),
+            ('<Q name="translation"><V text="DYKDDDDK"/></Q>', {
+                'translation': 'DYKDDDDK',
+            }),
+            ('<Q name="codon_start"><V int="1"/></Q>'
+             '<Q name="translation"><V text="DYKDDDDK"/></Q>', {
+                 'codon_start': 1,
+                 'translation': 'DYKDDDDK',
+            }),
+
+            # Weird special case: empty string.  From <dbp/076.dna>.
+            ('<Q name="translation"><V /></Q>', {
+                'translation': '',
+            }),
+])
+def test_qualifiers(xml, expected):
+    feat = snap.Feature.from_bytes(f'<Feature>{xml}</Feature>'.encode('utf8'))
+    assert feat.qualifiers == expected
+
 def test_get_feature():
     dna = snap.parse(EX / 't7_promoter.dna')
     feat = dna.get_feature("T7 promoter")
@@ -115,9 +138,9 @@ def test_remove_feature():
     dna.remove_feature('T7 promoter')
     assert dna.count_features() == 0
 
-    with pytest.raises(ValueError):
+    with pytest.raises(snap.FeatureNotFound):
         dna.remove_feature('T7 promoter')
-    with pytest.raises(ValueError):
+    with pytest.raises(snap.FeatureNotFound):
         dna.remove_feature('Does not exist')
 
 def test_clear_features():

@@ -8,6 +8,7 @@ import html
 import textwrap
 from pathlib import Path
 from more_itertools import one
+from copy import deepcopy
 
 block_ids = {}
 block_classes = {}
@@ -33,9 +34,11 @@ def blocks_from_bytes(bytes):
         while i < len(bytes):
             j = i + 5
             id, size = struct.unpack('>BI', bytes[i:j])
+            content = bytes[j:j+size]
             cls = block_classes.get(id, UndocumentedBlock)
-            block = cls.from_bytes(bytes[j:j+size])
+            block = cls.from_bytes(content)
             block.block_id = id
+            block.bytes = content
             blocks.append(block)
             i = j + size
 
@@ -93,8 +96,11 @@ class SnapGene:
     def __init__(self, path=None):
         if path:
             self.parse(path)
+        else:
+            self.reset()
 
-        self.blocks = []
+    def reset(self):
+        self.blocks = [HeaderBlock(), RestrictionDigestBlock()]
         self.input_path = None
 
     def parse(self, path):
@@ -106,6 +112,9 @@ class SnapGene:
             path = self.input_path
         if path is None:
             raise ValueError("not originally parsed from *.dna file, output path required.")
+
+        # Make sure there's a header.
+        assert isinstance(self.blocks[0], HeaderBlock)
 
         file_from_blocks(path, self.blocks)
 
@@ -233,14 +242,14 @@ class SnapGene:
         Return the feature with the given name.
 
         If multiple features have the given name, only the first one 
-        encountered will be returned.  A ValueError will be raised if no 
-        feature with the given name can be found.
+        encountered will be returned.  A FeatureNotFound exception will be 
+        raised if no feature with the given name can be found.
         """
         for feat in self.features:
             if feat.name == name:
                 return feat
 
-        raise ValueError(f"no feature named '{name}'")
+        raise FeatureNotFound(f"no feature named '{name}'")
 
     def count_features(self):
         """
@@ -248,7 +257,7 @@ class SnapGene:
         """
         return len(self.features)
 
-    def add_feature(self, feature):
+    def add_feature(self, feature, seq=None):
         """
         Add the given feature to the sequence.
 
@@ -256,10 +265,50 @@ class SnapGene:
         specified as segments, which you can provide by filling in the 
         `segments` attribute of the Feature instance with FeatureSegments 
         instances.
+
+        If you specify the optional `seq` argument, the position of the feature 
+        will automatically be set to the position of that subsequence in the 
+        full sequence.  If the given subsequence appears multiple times, 
+        multiple features will be created.  If the subsequence doesn't appear, 
+        a SequenceNotFound exception will be raised.  The given feature must 
+        have either 0 or 1 segments, otherwise it isn't clear how the position 
+        should be set.
         """
         block = self.find_or_make_block(FeaturesBlock)
-        feature.id = block.next_id
-        block.features.append(feature)
+
+        if not seq:
+            feature.id = block.next_id
+            block.features.append(feature)
+
+        else:
+            import re, copy
+
+            # Find all occurrences of the given sequence.
+
+            positions = [
+                    m.start()
+                    # Use lookahead to allow overlapping matches.
+                    for m in re.finditer(f'(?={seq.upper()})', self.sequence.upper())
+            ]
+            if not positions:
+                raise SequenceNotFound(f"'{seq}' not found in sequence")
+
+            # Add a copy of the given feature positioned over each occurrence 
+            # of the given sequence.
+
+            segments = getattr(feature, 'segments', [])
+            if len(segments) > 1:
+                raise ValueError(f"{feature} has multiple segments, unclear how to set position from sequence.")
+
+            for i in positions:
+                feat = deepcopy(feature)
+                if not segments:
+                    feat.segment = FeatureSegment()
+
+                # Indexing starts at 1, per the spec.
+                feat.segment.range = (i + 1, i + len(seq))
+                feat.id = block.next_id
+                block.features.append(feat)
 
     def remove_feature(self, name):
         """
@@ -267,12 +316,12 @@ class SnapGene:
 
         Only the feature annotation is removed; the sequence corresponding to 
         the feature remains.  If no feature with the given name can be found, a 
-        ValueError is raised.
+        FeatureNotFound exception is raised.
         """
         try:
             block = self.find_block(FeaturesBlock)
         except BlockNotFound:
-            raise ValueError(f"no feature named '{name}'")
+            raise FeatureNotFound(f"no feature named '{name}'")
 
         found_name = False
         for feat in block.features[:]:
@@ -281,7 +330,7 @@ class SnapGene:
                 found_name = True
 
         if not found_name:
-            raise ValueError(f"no feature named '{name}'")
+            raise FeatureNotFound(f"no feature named '{name}'")
 
         # Make the id numbers contiguous.  I don't think this is necessary, but 
         # it seems like the right thing to do.
@@ -682,6 +731,25 @@ class SnapGene:
     def _this_seq(self):
         return f"'{self.input_path}'" if self.input_path else "this sequence"
 
+class Repr:
+
+    def __repr__(self):
+        return f"<{self.__class__.__name__} {self.__repr_attrs__()}".strip() + ">"
+
+    def __repr_attrs__(self):
+        if not self.repr_attrs:
+            raise NotImplementedError
+
+        return ' '.join(
+                f'{k}="{self.__repr_attr__(k)}"'
+                for k in self.repr_attrs
+                if hasattr(self, k)
+        )
+
+    def __repr_attr__(self, attr):
+        return getattr(self, attr)
+
+
 class Xml:
     """
     A class that can read/write its attributes to/from XML.
@@ -689,7 +757,6 @@ class Xml:
     xml_tag = None
     xml_subtag_defs = []
     xml_attrib_defs = []
-    xml_repr_attrs = []
 
     class TextTag:
 
@@ -808,6 +875,17 @@ class Xml:
         def to_str(value):
             return str(value)
 
+    def __init__(self, **kwargs):
+        for name, value in self._defaults.items():
+            setattr(self, name, deepcopy(value))
+
+        for name, value in kwargs.items():
+            if name in self._defined_names:
+                setattr(self, name, value)
+            else:
+                did_you_mean = '\n    '.join(self._defined_names)
+                raise AttributeError(f"'{name}' is not a valid attribute of {self.__class__.__name__}, did you mean:\n    {did_you_mean}")
+
     def __init_subclass__(cls):
         super().__init_subclass__()
 
@@ -828,41 +906,38 @@ class Xml:
                 dups_str = '\n    '.join(dups)
                 raise ValueError("The following attributes are defined more than once:\n    {dups_str}")
 
-        cls._subtag_parsers_by_name = {
-                name: (tag, parser)
-                for name, tag, parser in cls.xml_subtag_defs
+        cls._defaults = {
+                defs[0]: defs[3]
+                for defs in cls.xml_attrib_defs + cls.xml_subtag_defs
+                if len(defs) == 4
         }
-        cls._subtag_parsers_by_tag = {
-                tag: (name, parser)
-                for name, tag, parser in cls.xml_subtag_defs
-        }
+
         cls._attrib_parsers_by_name = {
                 name: (attrib, parser)
-                for name, attrib, parser in cls.xml_attrib_defs
+                for name, attrib, parser, *_ in cls.xml_attrib_defs
         }
         cls._attrib_parsers_by_attrib = {
                 attrib: (name, parser)
-                for name, attrib, parser in cls.xml_attrib_defs
+                for name, attrib, parser, *_ in cls.xml_attrib_defs
         }
-        cls._subtag_names = [
-                name for name, _, _ in cls.xml_subtag_defs
-        ]
+        cls._subtag_parsers_by_name = {
+                name: (tag, parser)
+                for name, tag, parser, *_ in cls.xml_subtag_defs
+        }
+        cls._subtag_parsers_by_tag = {
+                tag: (name, parser)
+                for name, tag, parser, *_ in cls.xml_subtag_defs
+        }
+
         cls._attrib_names = [
-                name for name, _, _ in cls.xml_attrib_defs
+                name for name, *_ in cls.xml_attrib_defs
         ]
-        cls._defined_names = cls._subtag_names + cls._attrib_names
+        cls._subtag_names = [
+                name for name, *_ in cls.xml_subtag_defs
+        ]
+        cls._defined_names = cls._attrib_names + cls._subtag_names
 
         check_dups(cls._defined_names)
-
-    def __repr_attrs__(self):
-        if not self.repr_attrs:
-            raise NotImplementedError
-
-        return ' '.join(
-                f'{k}="{getattr(self, k)}"'
-                for k in self.repr_attrs
-                if hasattr(self, k)
-        )
 
     def __getattr__(self, name):
         if name in self._defined_names:
@@ -870,7 +945,7 @@ class Xml:
 
         else:
             did_you_mean = '\n    '.join(self._defined_names)
-            raise AttributeError(f"'{name}' is not a valid attribute, did you mean:\n    {did_you_mean}")
+            raise AttributeError(f"'{name}' is not a valid attribute of {self.__class__.__name__}, did you mean:\n    {did_you_mean}")
 
     def __delattr__(self, name):
         try:
@@ -881,7 +956,7 @@ class Xml:
 
             else:
                 did_you_mean = '\n    '.join(self._defined_names)
-                raise AttributeError(f"'{name}' is not a valid attribute, did you mean:\n    {did_you_mean}")
+                raise AttributeError(f"'{name}' is not a valid attribute of {self.__class__.__name__}, did you mean:\n    {did_you_mean}")
 
     def __eq__(self, other):
         undef = object()
@@ -931,14 +1006,25 @@ class Xml:
 
         root = etree.Element(self.xml_tag)
 
+        def has_default_value(name):
+            # In some cases, the absence of an attribute/subtag implies some 
+            # default value.  This function is used to avoid writing 
+            # attributes/subtags with such default values.
+            if name in self._defaults:
+                return getattr(self, name) == self._defaults[name]
+            else:
+                return False
+
         for name in self._attrib_names:
             if not hasattr(self, name): continue
+            if has_default_value(name): continue
             attrib, parser = self._attrib_parsers_by_name[name]
             value = getattr(self, name)
             root.attrib[attrib] = parser.to_str(value)
 
         for name in self._subtag_names:
             if not hasattr(self, name): continue
+            if has_default_value(name): continue
             tag, parser = self._subtag_parsers_by_name[name]
             sig = signature(parser.to_xml)
 
@@ -960,7 +1046,7 @@ class Xml:
 
         return root
 
-class Block:
+class Block(Repr):
 
     def __init_subclass__(cls):
         super().__init_subclass__()
@@ -969,11 +1055,15 @@ class Block:
             block_ids[cls.block_name] = cls.block_id
             block_classes[cls.block_id] = cls
 
-    def __repr__(self):
-        return f"<{self.__class__.__name__} block_id={self.block_id} {self.__repr_attrs__()}".strip() + ">"
-
-    def __repr_attrs__(self):
-        return ''
+        if not hasattr(cls, 'repr_attrs'):
+            cls.repr_attrs = ['block_id']
+        else:
+            if isinstance(cls.repr_attrs, str):
+                raise ValueError(f"{cls.__qualname__}.repr_attrs should be a list, not a str")
+            cls.repr_attrs = ['block_id', *[
+                    x for x in cls.repr_attrs
+                    if x != 'block_id'
+            ]]
 
     @classmethod
     def from_bytes(cls, bytes):
@@ -984,28 +1074,34 @@ class Block:
 
 
 class UnparsedBlock(Block):
+    repr_attrs = ['bytes']
 
-    def __init__(self, bytes=None):
-        self.bytes = bytes
+    def __repr_attr__(self, attr):
+        if attr == 'bytes':
+            bytes_repr = repr(self.bytes)[2:-1]
+            if len(bytes_repr) > 32:
+                bytes_repr = bytes_repr[:32] + '...'
+            return bytes_repr
 
-    def __repr_attrs__(self):
-        bytes_repr = repr(self.bytes)[2:-1]
-        if len(bytes_repr) > 32:
-            bytes_repr = bytes_repr[:32] + '...'
-        return f"UNPARSED bytes=b'{bytes_repr}'"
+        else:
+            return super().__repr_attr__(attr)
 
     @classmethod
     def from_bytes(cls, bytes):
-        return cls(bytes)
+        return cls()
 
     def to_bytes(self):
         return self.bytes
 
 
+class UndocumentedBlock(UnparsedBlock):
+    pass
+
 @autoprop
 class HeaderBlock(Block):
     block_id = 9
     block_name = 'header'
+    repr_attrs = 'type', 'export_version', 'import_version'
 
     file_types = {
             0: 'unknown',
@@ -1014,12 +1110,9 @@ class HeaderBlock(Block):
     }
 
     def __init__(self):
-        self.type_id = None
-        self.export_version = None
-        self.import_version = None
-
-    def __repr_attrs__(self):
-        return f"type='{self.type}' export_version='{self.export_version}' import_version='{self.import_version}'"
+        self.type_id = 1
+        self.export_version = 14
+        self.import_version = 14
 
     @classmethod
     def from_bytes(cls, bytes):
@@ -1050,22 +1143,25 @@ class HeaderBlock(Block):
 class DnaBlock(Block):
     block_id = 0
     block_name = 'dna'
+    repr_attrs = 'sequence',
 
     def __init__(self):
-        self.topology = None
-        self.strandedness = None
-        self.is_dam_methylated = None
-        self.is_dcm_methylated = None
-        self.is_ecoki_methylated = None
-        self.sequence = None
+        self.topology = 'linear'
+        self.strandedness = 'double'
+        self.is_dam_methylated = False
+        self.is_dcm_methylated = False
+        self.is_ecoki_methylated = False
+        self.sequence = ''
 
-    def __repr_attrs__(self):
-        if len(self.sequence) > 32:
-            truncated_seq = f"{self.sequence[:16]}...{self.sequence[-16:]}"
+    def __repr_attr__(self, attr):
+        if attr == 'sequence':
+            if len(self.sequence) > 32:
+                return f"{self.sequence[:16]}...{self.sequence[-16:]}"
+            else:
+                return self.sequence
+
         else:
-            truncated_seq = self.sequence
-
-        return f"{self.topology} {self.strandedness} sequence='{truncated_seq}'"
+            return super().__repr_attr__(attr)
 
     @classmethod
     def from_bytes(cls, bytes):
@@ -1095,6 +1191,7 @@ class DnaBlock(Block):
 class ProteinBlock(Block):
     block_id = 21
     block_name = 'protein'
+    repr_attrs = 'sequence',
 
     # This block is undocumented.  I attempted to reverse-engineer the file 
     # format from some example files.  Some information might be unavailable.
@@ -1103,11 +1200,15 @@ class ProteinBlock(Block):
         self.props = None
         self.sequence = None
 
-    def __repr_attrs__(self):
-        if len(self.sequence) > 32:
-            return f"sequence='{self.sequence[:16]}...{self.sequence[-16:]}'"
+    def __repr_attr__(self, attr):
+        if attr == 'sequence':
+            if len(self.sequence) > 32:
+                return f"sequence='{self.sequence[:16]}...{self.sequence[-16:]}'"
+            else:
+                return f"sequence='{self.sequence}'"
+
         else:
-            return f"sequence='{self.sequence}'"
+            return super().__repr_attr__(attr)
 
     @classmethod
     def from_bytes(cls, bytes):
@@ -1137,6 +1238,7 @@ class PrimerBlock(UnparsedBlock):
 class NotesBlock(Xml, Block):
     block_id = 6
     block_name = 'notes'
+    repr_attrs = 'type', 'created_by', 'last_modified'
 
     class ReferencesTag:
 
@@ -1172,11 +1274,10 @@ class NotesBlock(Xml, Block):
             ('date_created', 'Created', Xml.DateTag),
             ('date_last_modified', 'LastModified', Xml.DateTag),
     ]
-    xml_repr_attrs = 'type', 'created_by', 'last_modified'
 
-class Reference(Xml):
+class Reference(Xml, Repr):
+    repr_attrs = 'pubmed_id',
     xml_tag = 'Reference'
-    xml_repr_attrs = 'pubmed_id',
     xml_attrib_defs = [
             ('title', 'title', Xml.TextAttrib),
             ('pubmed_id', 'pubMedID', Xml.TextAttrib),
@@ -1201,6 +1302,7 @@ class PropertiesBlock(UnparsedBlock):
 class FeaturesBlock(Xml, Block):
     block_id = 10
     block_name = 'features'
+    repr_attrs = ['features']
 
     # I'm not totally sure whats up with the id numbers in this block.  They 
     # aren't mentioned in the 2015 spec...
@@ -1219,24 +1321,25 @@ class FeaturesBlock(Xml, Block):
 
     xml_tag = 'Features'
     xml_subtag_defs = [
-            ('features', 'Feature', FeatureTag),
+            ('features', 'Feature', FeatureTag, []),
     ]
     xml_attrib_defs = [
             ('_next_id', 'nextValidID', Xml.IntAttrib),
+
+            # I don't know what this is at all...
+            ('_recycled_ids', 'recycledIDs', Xml.TextAttrib),
     ]
 
-    def __repr_attrs__(self):
-        feat_names = textwrap.shorten(
-                ', '.join(x.name for x in self.features),
-                width=32,
-                placeholder='...',
-        )
-        return f"features='{feat_names}'"
+    def __repr_attr__(self, attr):
+        if attr == 'features':
+            return textwrap.shorten(
+                    ', '.join(x.name for x in self.features),
+                    width=32,
+                    placeholder='...',
+            )
 
-    @classmethod
-    def from_bytes(cls, bytes):
-        print(bytes)
-        return super().from_bytes(bytes)
+        else:
+            return super().__repr_attr__(attr)
 
     def to_xml(self):
         self._next_id = len(self.features)
@@ -1246,7 +1349,9 @@ class FeaturesBlock(Xml, Block):
         return len(self.features)
 
 
-class Feature(Xml):
+@autoprop
+class Feature(Xml, Repr):
+    repr_attrs = 'name', 'type'
 
     class SegmentTag(Xml.AppendListTag):
 
@@ -1272,9 +1377,20 @@ class Feature(Xml):
             name = element.attrib['name']
 
             def get_value(sub):
-                # The spec doesn't say, but I assume there must be exactly one 
-                # datum per tag.
-                assert len(sub.attrib) == 1
+                # This isn't in the spec, but I assume I'll never get multiple 
+                # attributes in a <V> tag.
+                # 
+                # However, it is possible to get no attributes.  I've only 
+                # encountered this is one example: a translated feature that 
+                # was too short to actually have a translation (e.g. 1 bp).  In 
+                # this case, value probably should be "", since "translation" 
+                # is normally text.  Assuming that integer data will never just 
+                # be left out like this, I'm going to interpret no attributes 
+                # as "".
+                if not sub.attrib:
+                    return ""
+
+                assert len(sub.attrib) == 1, etree.tostring(element)
 
                 key, value = sub.attrib.popitem()
                 return cls.data_types[key](value)
@@ -1293,6 +1409,11 @@ class Feature(Xml):
                 q.attrib['name'] = str(name)
 
                 v = etree.SubElement(q, 'V')
+
+                # Special-case empty strings as described in from_xml().
+                if value == "":
+                    continue
+
                 data_format = cls.data_formats[type(value)]
                 v.attrib[data_format] = str(value)
 
@@ -1315,10 +1436,9 @@ class Feature(Xml):
             return ','.join(str(x) for x in value)
 
     xml_tag = 'Feature'
-    xml_repr_attrs = 'name', 'type'
     xml_subtag_defs = [
-            ('segments', 'Segment', SegmentTag),
-            ('qualifiers', 'Q', QualifierTag),
+            ('segments', 'Segment', SegmentTag, []),
+            ('qualifiers', 'Q', QualifierTag, {}),
     ]
     xml_attrib_defs = [
             ('id', 'recentID', Xml.IntAttrib),
@@ -1337,12 +1457,54 @@ class Feature(Xml):
             ('genetic_code_id', 'geneticCode', Xml.TextAttrib),
             ('first_codon_met', 'translateFirstCodonAsMet', Xml.BoolAttrib),
             ('consecutive_translation_numbering', 'consecutiveTranslationNumbering', Xml.BoolAttrib),
+            ('consecutive_numbering_start', 'consecutiveNumberingStartsFrom', Xml.IntAttrib),
             ('translated_mw', 'translationMW', Xml.FloatAttrib),
             ('hits_stop_codon', 'hitsStopCodon', Xml.BoolAttrib),
     ]
 
+    @classmethod
+    def from_segment(cls, **kwargs):
+        """
+        Instantiate a feature with a single segment.
+
+        Keyword arguments corresponding to any attribute of either the Feature 
+        or FeatureSegment classes are accepted.
+        """
+        feature_kwargs = {
+                k: v
+                for k, v in kwargs.items() 
+                if k in cls._defined_names
+        }
+        segment_kwargs = {
+                k: v
+                for k, v in kwargs.items() 
+                if k not in cls._defined_names
+        }
+
+        feature = cls(**feature_kwargs)
+        feature.segments = [FeatureSegment(**segment_kwargs)]
+        return feature
+
+    def get_segment(self):
+        """
+        If this feature has only one segment, return it.  Otherwise, raise an 
+        exception.
+        """
+        return one(self.segments)
+    def set_segment(self, segment):
+        """
+        Remove any segments associated with this feature, and replace them with 
+        the given segment.
+
+        After calling this setter (or assigning to this attribute), the feature 
+        will have exactly one segment.  It will still be possible to add or 
+        remove segments later, though.
+        """
+        self.segments = [segment]
+
 @autoprop
-class FeatureSegment(Xml):
+class FeatureSegment(Xml, Repr):
+    repr_attrs = 'type', 'color', 'range'
 
     class RangeAttrib:
 
@@ -1361,33 +1523,31 @@ class FeatureSegment(Xml):
             ('display', 'type', Xml.TextAttrib),
             ('color', 'color', Xml.TextAttrib),
             ('is_translated', 'translated', Xml.BoolAttrib),
+            ('translation_start_number', 'translationNumberingStartsFrom', Xml.IntAttrib),
     ]
-
-    def __repr_attrs__(self):
-        return f"type='{self.type}' range='{self.begin}-{self.end}'"
 
     def get_begin(self):
         return self.range[0]
 
-    def set_begin(self, value):
-        self.range = value, self.range[1]
-
     def get_end(self):
         return self.range[1]
 
-    def set_end(self, value):
-        self.range = self.range[0], value
 
 class AlignmentsBlock(Block):
     block_id = 17
     block_name = 'alignments'
+    repr_attrs = ['metadata']
 
     def __init__(self):
         self.trim_stringency = None
         self.metadata = []
 
-    def __repr_attrs__(self):
-        return f"meta={','.join(str(x.id) for x in self.metadata)}"
+    def __repr_attr__(self, attr):
+        if attr == 'metadata':
+            return ','.join(str(x.id) for x in self.metadata) or 'none'
+
+        else:
+            return super().__repr_attr__(attr)
 
     @classmethod
     def from_bytes(cls, bytes):
@@ -1414,7 +1574,7 @@ class AlignmentsBlock(Block):
 
         return etree.tostring(root)
 
-class AlignmentMetadata(Xml):
+class AlignmentMetadata(Xml, Repr):
 
     class TrimmedRangeAttrib:
 
@@ -1434,6 +1594,7 @@ class AlignmentMetadata(Xml):
             ('is_trace', 'isTrace', Xml.BoolAttrib),
             ('sort_order', 'sortOrder', Xml.IntAttrib),
             ('trimmed_range', 'trimmedRange', TrimmedRangeAttrib),
+            ('is_manually_trimmed', 'manuallyTrimmed', Xml.BoolAttrib),
     ]
 
     def __repr__(self):
@@ -1442,13 +1603,11 @@ class AlignmentMetadata(Xml):
 class AlignedSequenceBlock(Block):
     block_id = 16
     block_name = 'aligned_sequence'
+    repr_attrs = ['id']
 
     def __init__(self):
         self.id = None
         self.traces = []
-
-    def __repr_attrs__(self):
-        return f"id={self.id}"
 
     @classmethod
     def from_bytes(cls, bytes):
@@ -1474,8 +1633,87 @@ class DnaColorBlock(UnparsedBlock):
     block_id = 20
     block_name = 'dna_colors'
 
-class UndocumentedBlock(UnparsedBlock):
-    pass
+class RestrictionDigestBlock(UndocumentedBlock):
+    block_id = 3
+    block_name = 'restriction_digest'
+    repr_attrs = ['sites']
+
+    # This is an undocumented block that seems to be necessary for SnapGene to 
+    # recognize restriction digest sites.  Below is what I've learned about 
+    # this block by trial-and-error:
+    #
+    # - If this block is completely missing from the file, SnapGene will behave 
+    #   as if the file contains no restriction sites.  So no restriction sites 
+    #   will be displayed, and the restriction-based cloning tools won't work.  
+    #   This can be worked-around by making any edit to the sequence, but of 
+    #   course this is inconvenient.
+    #
+    # - If the block is present in the file, restriction sites will work as 
+    #   expected.  Interestingly, this is true even if the block is completely 
+    #   empty (i.e. 0x030000).
+    #
+    # Below is what I know about the structure of the block:
+    #
+    # - The block begins with a single byte.  This byte has had a value of 0x01 
+    #   in every file I've looked at.  I tried changing it to both 0x00 and 
+    #   0xff; neither had any noticeable effect on SnapGene.
+    #
+    # - The next 4 bytes are an integer encoding the size of the ASCII string 
+    #   to follow.  This has been 4721 in every file I've looked at.
+    #
+    # - The ASCII string appears to be a comma-separated list of restriction 
+    #   sites, encoded using degenerate codons.  In every file I've looked at, 
+    #   there have been 469 such sites.  Note that this does not correspond to 
+    #   the number of commercial sites (666) or the number of non-redundant 
+    #   commercial sites (295).  Also note that removing this list (and 
+    #   updating the size bytes) has no noticeable effect on SnapGene.
+    #
+    # - After the string are a few thousand bytes (2815 in the files I've 
+    #   looked at) that are mostly zero, with a few ones sprinkled in there.  I 
+    #   have no idea what this means.  Removing these bytes has no noticeable 
+    #   effect on SnapGene.
+    #
+    # - At the end of the block, there is the following pattern:
+    #
+    #   - 0x000023c8 (int: 9160) repeated 4 times
+    #   - 0x000023cc (int: 9164) repeated 3 times
+    #   - 0x000023ce (int: 9166)
+    #   - 0x000000000100
+    #
+    #   I don't know what any of that means.
+
+    def __init__(self):
+        self.unk_1 = 1
+        self.sites = []
+        self.unk_2 = b''
+
+    def __repr_attr__(self, attr):
+        if attr == 'sites':
+            return str(len(self.sites))
+        else:
+            return super().__repr_attr__(attr)
+
+    @classmethod
+    def from_bytes(cls, bytes):
+        block = super().from_bytes(bytes)
+
+        _, n = struct.unpack('>BI', bytes[0:5])
+
+        block.unk_1 = _
+        block.sites = bytes[5:5+n].decode('ascii').split(',')
+        block.unk_2 = bytes[5+n:]
+
+        return block
+
+    def to_bytes(self):
+        sites_bytes = b','.join(x.encode('ascii') for x in self.sites)
+
+        bytes = b''
+        bytes += struct.pack('>BI', self.unk_1, len(sites_bytes))
+        bytes += sites_bytes
+        bytes += self.unk_2
+
+        return bytes
 
 
 
@@ -1489,4 +1727,8 @@ class SnapGeneError(Exception):
         return self.message.format(path=self.path)
 
 class BlockNotFound(AttributeError):
+    pass
+class SequenceNotFound(Exception):
+    pass
+class FeatureNotFound(Exception):
     pass
