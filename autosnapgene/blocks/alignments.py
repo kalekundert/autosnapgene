@@ -4,18 +4,30 @@ from ..parser import Block, Xml, Repr, UnparsedBlock
 from ..parser import blocks_from_bytes, bytes_from_blocks
 
 import struct
-import xml.etree.ElementTree as etree
 
-# AlignmentsBlock should inherit from Xml
-# (then I can get rid of the etree import)
-
-class AlignmentsBlock(Block):
+class AlignmentsBlock(Xml, Block):
     block_id = 17
     repr_attrs = ['metadata']
 
-    def __init__(self):
-        self.trim_stringency = None
-        self.metadata = []
+    class MetadataTag(Xml.AppendListTag):
+
+        @staticmethod
+        def from_xml(element):
+            return AlignmentMetadata.from_xml(element)
+
+        @staticmethod
+        def to_xml(parent, tag, metadata):
+            for meta in metadata:
+                e = meta.to_xml()
+                parent.append(e)
+
+    xml_tag = 'AlignableSequences'
+    xml_subtag_defs = [
+            ('metadata', 'Sequence', MetadataTag, []),
+    ]
+    xml_attrib_defs = [
+            ('trim_stringency', 'trimStringency', Xml.TextAttrib),
+    ]
 
     def __repr_attr__(self, attr):
         if attr == 'metadata':
@@ -23,31 +35,6 @@ class AlignmentsBlock(Block):
 
         else:
             return super().__repr_attr__(attr)
-
-    @classmethod
-    def from_bytes(cls, bytes):
-        block = cls()
-
-        xml = bytes.decode('utf8')
-        root = etree.fromstring(xml)
-
-        block.trim_stringency = root.attrib.get('trimStringency')
-        block.metadata = [
-                AlignmentMetadata.from_xml(child)
-                for child in root
-        ]
-        block.metadata.sort(key=lambda x: x.sort_order)
-        return block
-
-    def to_bytes(self):
-        root = etree.Element('AlignableSequences', {
-            'trimStringency': self.trim_stringency,
-        })
-        for meta in self.metadata:
-            child = meta.to_xml()
-            root.append(child)
-
-        return etree.tostring(root)
 
 class AlignmentMetadata(Xml, Repr):
 

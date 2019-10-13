@@ -23,8 +23,8 @@ class FeaturesBlock(Xml, Block):
         @staticmethod
         def to_xml(parent, tag, features):
             for feature in features:
-                subelement = feature.to_xml()
-                parent.append(subelement)
+                e = feature.to_xml()
+                parent.append(e)
 
     xml_tag = 'Features'
     xml_subtag_defs = [
