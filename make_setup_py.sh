@@ -13,6 +13,6 @@ tar=$(flit build 2>&1 >/dev/null | grep -oP 'Built sdist: \Kdist/.*.tar.gz')
 dir=$(basename ${tar%.tar.gz})
 
 tar -xzf $tar $dir/setup.py
-mv $dir/setup.py setup.py
+sed 's/distutils.core/setuptools/' $dir/setup.py >| setup.py
 rm -rf $dir
 
