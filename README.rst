@@ -31,3 +31,6 @@ You can use these tools to:
 
 - Programmatically build sequences from combinations of smaller parts.
 
+See the `documentation`__ for more details.
+
+__ https://autosnapgene.readthedocs.io/en/latest/
