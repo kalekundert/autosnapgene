@@ -4,7 +4,7 @@ from ..parser import Block, Xml, Repr
 
 class NotesBlock(Xml, Block):
     block_id = 6
-    repr_attrs = 'type', 'created_by', 'last_modified'
+    repr_attrs = 'type', 'author', 'last_modified'
 
     class ReferencesTag:
 

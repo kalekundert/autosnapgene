@@ -9,33 +9,39 @@ from copy import deepcopy
 from .errors import *
 
 def blocks_from_file(path, block_classes=None):
-    bytes = Path(path).read_bytes()
-    return blocks_from_bytes(bytes)
-
-def blocks_from_bytes(bytes, block_classes=None):
     try:
-        i = 0
-        blocks = []
-
-        if block_classes is None:
-            # Make sure all of the subclasses have been loaded.
-            from . import blocks as _
-            block_classes = Block.block_classes
-
-        while i < len(bytes):
-            j = i + 5
-            id, size = struct.unpack('>BI', bytes[i:j])
-            content = bytes[j:j+size]
-            cls = block_classes.get(id, UndocumentedBlock)
-            block = cls.from_bytes(content)
-            block.block_id = id
-            block.bytes = content
-            blocks.append(block)
-            i = j + size
+        bytes = Path(path).read_bytes()
+        return blocks_from_bytes(bytes)
 
     except ParseError as e:
         e.path = path
         raise e from None
+
+def blocks_from_bytes(bytes, block_classes=None):
+    i = 0
+    blocks = []
+
+    if block_classes is None:
+        # Make sure all of the subclasses have been loaded.
+        from . import blocks as _
+        block_classes = Block.block_classes
+
+    while i < len(bytes):
+        j = i + 5
+        if len(bytes) < j:
+            raise ParseError("unexpected EOF")
+
+        id, size = struct.unpack('>BI', bytes[i:j])
+        if len(bytes) < j + size:
+            raise ParseError("unexpected EOF")
+
+        content = bytes[j:j+size]
+        cls = block_classes.get(id, UndocumentedBlock)
+        block = cls.from_bytes(content)
+        block.block_id = id
+        block.bytes = content
+        blocks.append(block)
+        i = j + size
 
     return blocks
 
@@ -236,6 +242,11 @@ class Xml:
                 did_you_mean = '\n    '.join(self._defined_names)
                 raise AttributeError(f"'{name}' is not a valid attribute of {self.__class__.__name__}, did you mean:\n    {did_you_mean}")
 
+        # Keep track of unexpected attributes and subtags, so that we can write 
+        # everything we read, even if we don't understand it all.
+        self._unparsed_attribs = {}
+        self._unparsed_subtags = []
+
     def __init_subclass__(cls):
         super().__init_subclass__()
 
@@ -300,6 +311,7 @@ class Xml:
     def __delattr__(self, name):
         try:
             super().__delattr__(name)
+
         except AttributeError:
             if name in self._defined_names:
                 raise AttributeError(f"'{name}' not defined for {self.__class__.__name__}.")
@@ -310,7 +322,6 @@ class Xml:
 
     def __eq__(self, other):
         undef = object()
-
         return all([
             getattr(self, x, undef) == getattr(other, x, undef)
             for x in self._defined_names
@@ -333,14 +344,22 @@ class Xml:
         self = cls()
 
         for attrib in root.attrib:
-            name, parser = cls._attrib_parsers_by_attrib[attrib]
-            value = parser.from_str(root.attrib[attrib])
-            setattr(self, name, value)
+            try:
+                name, parser = cls._attrib_parsers_by_attrib[attrib]
+            except KeyError:
+                self._unparsed_attribs[attrib] = root.attrib[attrib]
+            else:
+                value = parser.from_str(root.attrib[attrib])
+                setattr(self, name, value)
 
         for element in root:
-            name, parser = cls._subtag_parsers_by_tag[element.tag]
-            value = parser.from_xml(element)
-            getattr(parser, 'setattr', setattr)(self, name, value)
+            try:
+                name, parser = cls._subtag_parsers_by_tag[element.tag]
+            except KeyError:
+                self._unparsed_subtags.append(element)
+            else:
+                value = parser.from_xml(element)
+                getattr(parser, 'setattr', setattr)(self, name, value)
 
         return self
 
@@ -365,12 +384,18 @@ class Xml:
             else:
                 return False
 
+        for attrib, value in self._unparsed_attribs.items():
+            root.attrib[attrib] = value
+
         for name in self._attrib_names:
             if not hasattr(self, name): continue
             if has_default_value(name): continue
             attrib, parser = self._attrib_parsers_by_name[name]
             value = getattr(self, name)
             root.attrib[attrib] = parser.to_str(value)
+
+        for element in self._unparsed_subtags:
+            root.append(element)
 
         for name in self._subtag_names:
             if not hasattr(self, name): continue
