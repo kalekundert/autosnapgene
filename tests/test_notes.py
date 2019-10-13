@@ -18,7 +18,7 @@ def test_from_bytes():
 <TransformedInto>unspecified</TransformedInto>
 </Notes>'''
 
-    notes = snap.NotesBlock.from_bytes(bytes)
+    notes = snap.blocks.NotesBlock.from_bytes(bytes)
 
     assert notes.uuid == 'd528ff2f-6579-48ab-9301-ab40df3f2505'
     assert notes.type == 'Natural'
@@ -32,7 +32,7 @@ def test_from_bytes():
     assert notes.transformed_into == 'unspecified'
 
 def test_to_bytes():
-    notes = snap.NotesBlock()
+    notes = snap.blocks.NotesBlock()
     xml = lambda x: x.replace('\n', '').encode('utf8')
 
     assert notes.to_bytes() == xml('''\

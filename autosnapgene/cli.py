@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
-from . import parser
+from . import api
+
 from docopt import docopt
 from pathlib import Path
 from nonstdlib import indices_from_str
@@ -79,7 +80,7 @@ def seq():
             unmodified.  The default is to overwrite the input file.
     """
     args = parse_cli()
-    dna = parser.parse(args['<dna_path>'])
+    dna = api.parse(args['<dna_path>'])
 
     if args['get']:
         print(dna.sequence)
@@ -130,10 +131,10 @@ def feature():
             Indicate that the feature being added should be translated.
     """
     args = parse_cli()
-    dna = parser.parse(args['<dna_path>'])
+    dna = api.parse(args['<dna_path>'])
 
     if args['add']:
-        feature = parser.Feature.from_segment()
+        feature = api.Feature.from_segment()
         feature.name = args['<name>']
 
         if args['--color']:
@@ -152,7 +153,7 @@ def feature():
 
     if args['remove']:
         try: dna.remove_feature(args['<name>'])
-        except parser.FeatureNotFound: pass
+        except api.FeatureNotFound: pass
         dna.write(args['--out'])
 
     if args['clear']:
@@ -179,7 +180,7 @@ def trace():
             unmodified.  The default is to overwrite the input file.
     """
     args = parse_cli()
-    dna = parser.parse(args['<dna_path>'])
+    dna = api.parse(args['<dna_path>'])
 
     def apply_and_save(method):
         method()
@@ -219,7 +220,7 @@ def history():
             unmodified.  The default is to overwrite the input file.
     """
     args = parse_cli()
-    dna = parser.parse(args['<dna_path>'])
+    dna = api.parse(args['<dna_path>'])
 
     if args['clear']:
         dna.clear_history()
@@ -255,7 +256,7 @@ def debug():
 
     """
     args = parse_cli()
-    dna = parser.parse(args['<dna_path>'])
+    dna = api.parse(args['<dna_path>'])
 
     def is_specified(i, block):
         if args['--id']:

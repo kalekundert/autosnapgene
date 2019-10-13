@@ -50,7 +50,7 @@ def test_setters():
 
 @pytest.mark.parametrize('bytes,params', bytes_params)
 def test_from_bytes(bytes, params):
-    dna = snap.DnaBlock.from_bytes(bytes)
+    dna = snap.blocks.DnaBlock.from_bytes(bytes)
 
     assert dna.sequence == params[0]
     assert dna.topology == params[1]
@@ -61,7 +61,7 @@ def test_from_bytes(bytes, params):
 
 @pytest.mark.parametrize('bytes,params', bytes_params)
 def test_to_bytes(bytes, params):
-    dna = snap.DnaBlock()
+    dna = snap.blocks.DnaBlock()
 
     dna.sequence = params[0]
     dna.topology = params[1]

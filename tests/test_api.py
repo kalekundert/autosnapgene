@@ -6,8 +6,6 @@ from pathlib import Path
 from inspect import getmembers, signature
 from pprint import pprint
 
-EX = Path(__file__).parent / 'examples'
-
 def no_required_args(f):
     # Don't count the self parameter.
     non_self_params = list(signature(f).parameters.values())[1:]
@@ -25,10 +23,10 @@ snap_getters = [
 ]
 
 @pytest.mark.parametrize('getter', snap_getters)
-def test_getters_same_after_write(getter, parse_and_write):
+def test_getters_same_after_write(getter, examples, parse_and_write):
     # Make sure no getters change value as a result of reading and writing the 
     # same file.
-    in_paths = EX.glob('*.dna')
+    in_paths = examples.glob('*.dna')
 
     for in_path in in_paths:
         in_dna, out_dna = parse_and_write(in_path.name)
@@ -50,9 +48,4 @@ def test_getters_same_after_write(getter, parse_and_write):
 
         assert in_value == out_value
 
-
-def test_blocks_from_file():
-    blocks = snap.blocks_from_file(EX / 't7_promoter.dna')
-    pprint(blocks)
-    assert len(blocks) == 10
 

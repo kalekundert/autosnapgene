@@ -4,8 +4,6 @@ import pytest
 import autosnapgene as snap
 from pathlib import Path
 
-EX = Path(__file__).parent / 'examples'
-
 xml_t7 = '''\
 <Features nextValidID="1">
  <Feature recentID="0" name="T7 promoter" directionality="1" type="promoter" allowSegmentOverlaps="0" consecutiveTranslationNumbering="1">
@@ -111,15 +109,15 @@ def test_qualifiers(xml, expected):
     feat = snap.Feature.from_bytes(f'<Feature>{xml}</Feature>'.encode('utf8'))
     assert feat.qualifiers == expected
 
-def test_get_feature():
-    dna = snap.parse(EX / 't7_promoter.dna')
+def test_get_feature(examples):
+    dna = snap.parse(examples / 't7_promoter.dna')
     feat = dna.get_feature("T7 promoter")
 
     assert feat.name == "T7 promoter"
     assert feat.type == 'promoter'
 
-def test_add_feature():
-    dna = snap.parse(EX / 't7_promoter.dna')
+def test_add_feature(examples):
+    dna = snap.parse(examples / 't7_promoter.dna')
     assert dna.count_features() == 1
 
     feat = snap.Feature()
@@ -131,8 +129,8 @@ def test_add_feature():
     dna.add_feature(feat)
     assert dna.count_features() == 2
 
-def test_remove_feature():
-    dna = snap.parse(EX / 't7_promoter.dna')
+def test_remove_feature(examples):
+    dna = snap.parse(examples / 't7_promoter.dna')
     assert dna.count_features() == 1
 
     dna.remove_feature('T7 promoter')
@@ -143,8 +141,8 @@ def test_remove_feature():
     with pytest.raises(snap.FeatureNotFound):
         dna.remove_feature('Does not exist')
 
-def test_clear_features():
-    dna = snap.parse(EX / 't7_promoter.dna')
+def test_clear_features(examples):
+    dna = snap.parse(examples / 't7_promoter.dna')
     assert dna.count_features() == 1
 
     dna.clear_features()

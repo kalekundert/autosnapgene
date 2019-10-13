@@ -25,5 +25,5 @@ classifiers = [
 'Version Control' = 'https://github.com/kalekundert/autosnapgene'
 
 [tool.flit.scripts]
-autosnapgene = "autosnapgene.main:main"
+autosnapgene = "autosnapgene.cli:main"
 
