@@ -14,11 +14,19 @@ block_ids = {}
 block_classes = {}
 
 def parse(path):
+    """
+    Parse the given file and return a `SnapGene` object.
+    """
     dna = SnapGene()
     dna.parse(path)
     return dna
 
 def write(path, dna):
+    """
+    Write the given `SnapGene` object (dna) to the given path.
+
+    This is an alias for ``dna.write(path)``.
+    """
     dna.write(path)
 
 
@@ -242,7 +250,7 @@ class SnapGene:
         Return the feature with the given name.
 
         If multiple features have the given name, only the first one 
-        encountered will be returned.  A FeatureNotFound exception will be 
+        encountered will be returned.  A `FeatureNotFound` exception will be 
         raised if no feature with the given name can be found.
         """
         for feat in self.features:
@@ -263,14 +271,14 @@ class SnapGene:
 
         The argument should be a Feature instance.  Colors and positions are 
         specified as segments, which you can provide by filling in the 
-        `segments` attribute of the Feature instance with FeatureSegments 
+        segments attribute of the Feature instance with FeatureSegments 
         instances.
 
-        If you specify the optional `seq` argument, the position of the feature 
+        If you specify the optional *seq* argument, the position of the feature 
         will automatically be set to the position of that subsequence in the 
         full sequence.  If the given subsequence appears multiple times, 
         multiple features will be created.  If the subsequence doesn't appear, 
-        a SequenceNotFound exception will be raised.  The given feature must 
+        a `SequenceNotFound` exception will be raised.  The given feature must 
         have either 0 or 1 segments, otherwise it isn't clear how the position 
         should be set.
         """
@@ -316,7 +324,7 @@ class SnapGene:
 
         Only the feature annotation is removed; the sequence corresponding to 
         the feature remains.  If no feature with the given name can be found, a 
-        FeatureNotFound exception is raised.
+        `FeatureNotFound` exception is raised.
         """
         try:
             block = self.find_block(FeaturesBlock)
@@ -346,125 +354,6 @@ class SnapGene:
 
     def extract_features(self):
         raise NotImplementedError
-
-    # Notes
-
-    def get_plasmid_type(self):
-        """
-        "Natural" or "Synthetic".
-        """
-        return self.find_block(NotesBlock).type
-
-    def set_plasmid_type(self, value):
-        self.find_block(NotesBlock).type = value
-
-    def get_custom_map_label(self):
-        return self.find_block(NotesBlock).custom_map_label
-
-    def set_custom_map_label(self, value):
-        self.find_block(NotesBlock).custom_map_label = value
-
-    def get_use_custom_map_label(self):
-        return self.find_block(NotesBlock).use_custom_map_label
-
-    def set_use_custom_map_label(self, value):
-        self.find_block(NotesBlock).use_custom_map_label = value
-
-    def get_is_confirmed_experimentally(self):
-        """
-        True if this sequence has been experimentally confirmed.
-        """
-        return self.find_block(NotesBlock).is_confirmed_experimentally
-
-    def set_is_confirmed_experimentally(self, value):
-        self.find_block(NotesBlock).is_confirmed_experimentally = value
-
-    def get_description(self):
-        """
-        A description of the sequence.
-        """
-        return self.find_block(NotesBlock).description
-
-    def set_description(self, value):
-        self.find_block(NotesBlock).description = value
-
-    def get_date_created(self):
-        """
-        The date the sequence was created.
-        """
-        return self.find_block(NotesBlock).date_created
-
-    def set_date_created(self, value):
-        self.find_block(NotesBlock).date_created = value
-
-    def get_date_last_modified(self):
-        """
-        The date the sequence was last modified.
-        """
-        return self.find_block(NotesBlock).date_last_modified
-
-    def set_date_last_modified(self, value):
-        self.find_block(NotesBlock).date_last_modified = value
-
-    def get_accession_number(self):
-        return self.find_block(NotesBlock).accession_number
-
-    def set_accession_number(self, value):
-        self.find_block(NotesBlock).accession_number = value
-
-    def get_code_number(self):
-        return self.find_block(NotesBlock).code_number
-
-    def set_code_number(self, value):
-        self.find_block(NotesBlock).code_number = value
-
-    def get_author(self):
-        """
-        The creator of this sequence.
-        """
-        return self.find_block(NotesBlock).author
-
-    def set_author(self, value):
-        self.find_block(NotesBlock).author = value
-
-    def get_organism(self):
-        """
-        The organism this sequence derives from.
-        """
-        return self.find_block(NotesBlock).organism
-
-    def set_organism(self, value):
-        self.find_block(NotesBlock).organism = value
-
-    def get_sequence_class(self):
-        return self.find_block(NotesBlock).sequence_class
-
-    def set_sequence_class(self, value):
-        self.find_block(NotesBlock).sequence_class = value
-
-    def get_transformed_into(self):
-        """
-        The organism/strain being used to propagate this sequence in the lab.
-        """
-        return self.find_block(NotesBlock).transformed_into
-
-    def set_transformed_into(self, value):
-        self.find_block(NotesBlock).transformed_into = value
-
-    def get_comments(self):
-        """
-        Miscellaneous comments on this sequence.
-        """
-        return self.find_block(NotesBlock).comments
-
-    def set_comments(self, value):
-        self.find_block(NotesBlock).comments = value
-
-    def get_references(self):
-        return self.find_block(NotesBlock).references
-
-    def set_references(self, value):
-        self.find_block(NotesBlock).references = value
 
     # Alignment
 
@@ -647,6 +536,9 @@ class SnapGene:
         self.insert_trace(i, path, name=new_name)
 
     def count_traces(self):
+        """
+        Return the number of traces associated with the sequence.
+        """
         return len(self.get_traces())
 
     def sort_traces(self, key=lambda x: x.name, reverse=False):
@@ -704,8 +596,130 @@ class SnapGene:
     # History
 
     def clear_history(self):
+        """
+        Remove all history from the sequence.
+        """
         self.remove_blocks(HistoryBlock)
         self.remove_blocks(HistoryNodeBlock)
+
+    # Notes
+
+    def get_plasmid_type(self):
+        """
+        "Natural" or "Synthetic".
+        """
+        return self.find_block(NotesBlock).type
+
+    def set_plasmid_type(self, value):
+        self.find_block(NotesBlock).type = value
+
+    def get_custom_map_label(self):
+        return self.find_block(NotesBlock).custom_map_label
+
+    def set_custom_map_label(self, value):
+        self.find_block(NotesBlock).custom_map_label = value
+
+    def get_use_custom_map_label(self):
+        return self.find_block(NotesBlock).use_custom_map_label
+
+    def set_use_custom_map_label(self, value):
+        self.find_block(NotesBlock).use_custom_map_label = value
+
+    def get_is_confirmed_experimentally(self):
+        """
+        True if this sequence has been experimentally confirmed.
+        """
+        return self.find_block(NotesBlock).is_confirmed_experimentally
+
+    def set_is_confirmed_experimentally(self, value):
+        self.find_block(NotesBlock).is_confirmed_experimentally = value
+
+    def get_description(self):
+        """
+        A description of the sequence.
+        """
+        return self.find_block(NotesBlock).description
+
+    def set_description(self, value):
+        self.find_block(NotesBlock).description = value
+
+    def get_date_created(self):
+        """
+        The date the sequence was created.
+        """
+        return self.find_block(NotesBlock).date_created
+
+    def set_date_created(self, value):
+        self.find_block(NotesBlock).date_created = value
+
+    def get_date_last_modified(self):
+        """
+        The date the sequence was last modified.
+        """
+        return self.find_block(NotesBlock).date_last_modified
+
+    def set_date_last_modified(self, value):
+        self.find_block(NotesBlock).date_last_modified = value
+
+    def get_accession_number(self):
+        return self.find_block(NotesBlock).accession_number
+
+    def set_accession_number(self, value):
+        self.find_block(NotesBlock).accession_number = value
+
+    def get_code_number(self):
+        return self.find_block(NotesBlock).code_number
+
+    def set_code_number(self, value):
+        self.find_block(NotesBlock).code_number = value
+
+    def get_author(self):
+        """
+        The creator of this sequence.
+        """
+        return self.find_block(NotesBlock).author
+
+    def set_author(self, value):
+        self.find_block(NotesBlock).author = value
+
+    def get_organism(self):
+        """
+        The organism this sequence derives from.
+        """
+        return self.find_block(NotesBlock).organism
+
+    def set_organism(self, value):
+        self.find_block(NotesBlock).organism = value
+
+    def get_sequence_class(self):
+        return self.find_block(NotesBlock).sequence_class
+
+    def set_sequence_class(self, value):
+        self.find_block(NotesBlock).sequence_class = value
+
+    def get_transformed_into(self):
+        """
+        The organism/strain being used to propagate this sequence in the lab.
+        """
+        return self.find_block(NotesBlock).transformed_into
+
+    def set_transformed_into(self, value):
+        self.find_block(NotesBlock).transformed_into = value
+
+    def get_comments(self):
+        """
+        Miscellaneous comments on this sequence.
+        """
+        return self.find_block(NotesBlock).comments
+
+    def set_comments(self, value):
+        self.find_block(NotesBlock).comments = value
+
+    def get_references(self):
+        return self.find_block(NotesBlock).references
+
+    def set_references(self, value):
+        self.find_block(NotesBlock).references = value
 
     # File format
     
@@ -1728,7 +1742,9 @@ class SnapGeneError(Exception):
 
 class BlockNotFound(AttributeError):
     pass
+
 class SequenceNotFound(Exception):
     pass
+
 class FeatureNotFound(Exception):
     pass

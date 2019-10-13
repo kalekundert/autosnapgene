@@ -1,6 +1,6 @@
+************
 AutoSnapGene
-============
-
+************
 .. image:: https://img.shields.io/pypi/v/autosnapgene.svg
    :target: https://pypi.python.org/pypi/autosnapgene
 
@@ -13,23 +13,21 @@ AutoSnapGene
 .. image:: https://img.shields.io/coveralls/kalekundert/autosnapgene.svg
    :target: https://coveralls.io/github/kalekundert/autosnapgene?branch=master
 
-AutoSnapGene is a set of tools for automatically processing SnapGene files.  It includes a parser capable of reading and writing SnapGene files, in addition to a set of command-line utilities that implement common operations.
+.. image:: https://readthedocs.org/projects/autosnapgene/badge/?version=latest
+   :target: https://autosnapgene.readthedocs.io/en/latest/?badge=latest
 
-Installation
-------------
-AutoSnapGene is not yet available on PyPI.  In the meantime::
+`SnapGene <https://www.snapgene.com/>`_ is an excellent tool for viewing and 
+editing plasmid maps, but it's difficult to programmatically work with the 
+binary files (``*.dna``) that SnapGene reads and writes.  This is what 
+AutoSnapGene helps with.  AutoSnapGene is both a python library for parsing 
+SnapGene files, and a set of command-line tools for automating simple tasks.  
+You can use these tools to:
 
-   $ git clone git@github.com:kalekundert/autosnapgene.git
-   $ cd autosnapgene
-   $ flit install
-   
-Usage
------
-Use ``--help`` for brief descriptions of the available commands::
+- Automatically add sequencing data to your plasmids.
 
-   $ autosnapgene --help
-   Perform batch operations on SnapGene files.
+- Synchronize features and primers over all of your plasmids at once.
 
-   Usage:
-       autosnapgene add_traces <dna_path> <ab1_paths>...
-       autosnapgene clear_history <dna_path>
+- Seamlessly use the sequences stored in your SnapGene file in other scripts.
+
+- Programmatically build sequences from combinations of smaller parts.
+

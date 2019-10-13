@@ -97,14 +97,18 @@ def seq():
         dna.write(args['--out'])
 
 @command
+def info():
+    pass
+
+@command
 def feature():
     """\
     Add or remove features from a SnapGene file.
 
     Usage:
-        autosnapgene features add <dna_path> <name> <seq> [options]
-        autosnapgene features remove <dna_path> <name> [-o <dna_path>]
-        autosnapgene features clear <dna_path> <seq> [-o <dna_path>]
+        autosnapgene feature add <dna_path> <name> <seq> [options]
+        autosnapgene feature remove <dna_path> <name> [-o <dna_path>]
+        autosnapgene feature clear <dna_path> <seq> [-o <dna_path>]
 
     Options:
         -o --out <dna_path>
@@ -220,10 +224,6 @@ def history():
     if args['clear']:
         dna.clear_history()
         dna.write(args['--out'])
-
-@command
-def info():
-    pass
 
 @command
 def debug():
