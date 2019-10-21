@@ -70,6 +70,7 @@ def seq():
 
     Usage:
         autosnapgene seq get <dna_path>
+        autosnapgene seq len <dna_path>
         autosnapgene seq set <dna_path> <seq> [-o <dna_path>]
         autosnapgene seq upper <dna_path> [-o <dna_path>]
         autosnapgene seq lower <dna_path> [-o <dna_path>]
@@ -84,6 +85,9 @@ def seq():
 
     if args['get']:
         print(dna.sequence)
+
+    if args['len']:
+        print(len(dna.sequence))
 
     if args['set']:
         dna.sequence = args['<seq>']
