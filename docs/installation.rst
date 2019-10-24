@@ -29,7 +29,7 @@ Fedora::
 
 Arch (via AUR)::
 
-   $ https://aur.archlinux.org/staden-io_lib.git
+   $ git clone https://aur.archlinux.org/staden-io_lib.git
    $ cd staden-io_lib
    $ less PKGBUILD
    $ makepkg -si

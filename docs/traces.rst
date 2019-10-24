@@ -9,8 +9,8 @@ your plasmids.
 
 .. note::
    
-   In order to add traces using AutoSnapGene, you must install Staden io_lib as 
-   described on the :doc:`installation page <installation>`.
+   In order to add traces to plasmid files using AutoSnapGene, you must install 
+   Staden io_lib as described on the :doc:`installation page <installation>`.
 
 Command-line
 ============
@@ -23,7 +23,7 @@ Add a sequencing trace to a plasmid file::
 
 Remove a sequencing trace from a file::
 
-   $ autosnapgene trace add pKBK076.dna 76A
+   $ autosnapgene trace remove pKBK076.dna 76A
 
 Remove all sequencing traces from a file::
 
