@@ -58,10 +58,15 @@ def main():
         {commands}
     """
     import sys
-    if len(sys.argv) > 1 and sys.argv[1] in commands:
-        return commands[sys.argv[1]]()
-    else:
-        parse_cli(argv=['-h'], commands=format_command_descriptions())
+
+    try:
+        if len(sys.argv) > 1 and sys.argv[1] in commands:
+            return commands[sys.argv[1]]()
+        else:
+            parse_cli(argv=['-h'], commands=format_command_descriptions())
+
+    except FileNotFoundError as err:
+        sys.exit(err)
 
 @command
 def seq():
@@ -236,9 +241,9 @@ def debug():
     Various utilities for inspecting and debugging SnapGene files.
 
     Usage:
-        autosnapgene debug list-blocks <dna_path>
-        autosnapgene debug dump-block <dna_path> (-I <id> | -i <i>) [-b]
-        autosnapgene debug remove-block <dna_path> (-I <id> | -i <i>) [-o <dna_path>]
+        autosnapgene debug list-blocks <dna_path> (-I <id> | -i <i>)
+        autosnapgene debug dump-blocks <dna_path> (-I <id> | -i <i>) [-bx]
+        autosnapgene debug remove-blocks <dna_path> (-I <id> | -i <i>) [-o <dna_path>]
         autosnapgene debug parse <dna_path> [-o <dna_path>]
 
     Options:
@@ -258,6 +263,11 @@ def debug():
             Dump block data in raw binary format, rather than in string format.  
             This will produce suitable input for a hex editor.
 
+        -x --xml
+            Dump the block data in pretty-printed XML format, rather than 
+            string format.  This will only work for blocks that are actually 
+            XML data.
+
     """
     args = parse_cli()
     dna = api.parse(args['<dna_path>'])
@@ -273,19 +283,24 @@ def debug():
 
     if args['list-blocks']:
         for i, block in enumerate(dna.blocks):
-            print(f"{i}: {block}")
+            if is_specified(i, block):
+                print(f"{i}: {block}")
 
-    if args['dump-block']:
+    if args['dump-blocks']:
         for i, block in enumerate(dna.blocks):
             if is_specified(i, block):
                 if args['--bytes']:
                     fp = os.fdopen(sys.stdout.fileno(), 'wb')
-                    fp.write(block.block_bytes)
+                    fp.write(block.bytes)
+                if args['--xml']:
+                    from xml.dom import minidom 
+                    xml = minidom.parseString(block.bytes.decode('utf8'))
+                    print(xml.toprettyxml())
                 else:
-                    print(block.block_bytes)
+                    print(block.bytes)
                     print()
 
-    if args['remove-block']:
+    if args['remove-blocks']:
         dna.blocks = [
                 b for i, b in enumerate(dna.blocks)
                 if not is_specified(i, b)
