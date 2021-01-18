@@ -175,10 +175,12 @@ def trace():
     Add, remove, or query sequencing traces within a SnapGene file.
 
     Usage:
+        autosnapgene trace list <dna_path>
         autosnapgene trace add <dna_path> <ab1_paths>... [-o <dna_path>]
         autosnapgene trace append <dna_path> <ab1_paths>... [-o <dna_path>]
         autosnapgene trace prepend <dna_path> <ab1_paths>... [-o <dna_path>]
-        autosnapgene trace remove <dna_path> <ab1_paths>... [-o <dna_path>]
+        autosnapgene trace remove <dna_path> <trace_name>... [-o <dna_path>]
+        autosnapgene trace pick <dna_path> <trace_name> [-o <dna_path>]
         autosnapgene trace sort <dna_path> [-o <dna_path>]
         autosnapgene trace clear <dna_path> [-o <dna_path>]
         autosnapgene trace extract <dna_path> <out_dir>
@@ -200,6 +202,14 @@ def trace():
             method(Path(ab1))
         dna.write(args['--out'])
 
+    def apply_name_and_save(method):
+        for name in args['<trace_name>']:
+            method(name)
+        dna.write(args['--out'])
+
+    if args['list']:
+        for trace in sorted(dna.traces, key=lambda x: (x.sort_order, x.name)):
+            print(trace.name)
     if args['add']:
         apply_ab1_and_save(dna.add_trace)
     if args['append']:
@@ -207,7 +217,9 @@ def trace():
     if args['prepend']:
         apply_ab1_and_save(dna.prepend_trace)
     if args['remove']:
-        apply_ab1_and_save(dna.remove_trace)
+        apply_name_and_save(dna.remove_trace)
+    if args['pick']:
+        apply_name_and_save(dna.pick_trace)
     if args['sort']:
         apply_and_save(dna.sort_traces)
     if args['clear']:

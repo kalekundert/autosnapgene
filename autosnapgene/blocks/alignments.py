@@ -60,7 +60,7 @@ class AlignmentMetadata(Xml, Repr):
     ]
 
     def __repr__(self):
-        return f"<AlignmentMetadata id={self.id} name='{self.name}' is_trace={int(self.is_trace)} sort_order={self.sort_order}>"
+        return f"<AlignmentMetadata id={self.id} name='{self.name}' is_trace={int(self.is_trace)} is_visible={self.is_visible} sort_order={self.sort_order}>"
 
 class AlignedSequenceBlock(Block):
     block_id = 16

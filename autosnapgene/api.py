@@ -368,7 +368,7 @@ class SnapGene:
         ztr = parser.ztr_from_data(data)
 
         # Figure out the next id from the AlignmentsBlock metadata.
-        align_block = self.find_block(blocks.AlignmentsBlock)
+        align_block = self.find_or_make_block(blocks.AlignmentsBlock)
         next_id = max((x.id for x in align_block.metadata), default=0) + 1
         next_order = max((x.sort_order for x in align_block.metadata), default=0) + 1
 
@@ -392,8 +392,7 @@ class SnapGene:
         meta.is_trace = True
         align_block.metadata.insert(i, meta)
 
-        for i, meta in enumerate(align_block.metadata):
-            meta.sort_order = i
+        self.sync_trace_metadata()
 
     def remove_trace(self, name):
         """
@@ -433,6 +432,8 @@ class SnapGene:
             old_id = meta.id
             meta.id = seq_blocks[old_id].id = new_id
 
+        self.sync_trace_metadata()
+
     def rename_trace(self, old_name, new_name):
         """
         Rename the given trace.
@@ -467,6 +468,39 @@ class SnapGene:
 
         self.remove_trace(old_name)
         self.insert_trace(i, path, name=new_name)
+
+    def sync_trace_metadata(self):
+        align_block = self.find_block(blocks.AlignmentsBlock)
+
+        # Remove old entries from the metadata.  I don't know how these entries 
+        # appear.  I initially wrote the code to get rid of these entries 
+        # because I thought they might be causing problems, but further 
+        # experimentation made that seem like the wrong hypothesis.  I'm 
+        # keeping the code, though, because it doesn't seem like it could hurt.  
+        existing_ids = set()
+        for block in self.find_blocks(blocks.AlignedSequenceBlock):
+            existing_ids.add(block.id)
+
+        align_block.metadata = [
+                meta
+                for meta in align_block.metadata
+                if meta.id in existing_ids
+        ]
+
+        # Make sure the sort order matches the actual list order.
+        for i, meta in enumerate(align_block.metadata):
+            meta.sort_order = i
+
+    def pick_trace(self, name):
+        """
+        Hide every trace except for the one specified.
+        """
+        if isinstance(name, Path):
+            name = name.stem
+
+        for trace in self.traces:
+            trace.is_visible = (trace.name == name)
+            debug(trace)
 
     def count_traces(self):
         """
