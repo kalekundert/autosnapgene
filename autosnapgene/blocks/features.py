@@ -101,7 +101,7 @@ class Feature(Xml, Repr):
                 assert len(sub.attrib) == 1, etree.tostring(element)
 
                 key, value = sub.attrib.popitem()
-                return cls.data_types[key](value)
+                return cls.data_types.get(key, str)(value)
 
             if len(element) == 1:
                 value = get_value(element.find('V'))
