@@ -253,7 +253,7 @@ def debug():
     Various utilities for inspecting and debugging SnapGene files.
 
     Usage:
-        autosnapgene debug list-blocks <dna_path> (-I <id> | -i <i>)
+        autosnapgene debug list-blocks <dna_path> [-I <id> | -i <i>]
         autosnapgene debug dump-blocks <dna_path> (-I <id> | -i <i>) [-bx]
         autosnapgene debug remove-blocks <dna_path> (-I <id> | -i <i>) [-o <dna_path>]
         autosnapgene debug parse <dna_path> [-o <dna_path>]
@@ -289,6 +289,7 @@ def debug():
             return block.block_id in indices_from_str(args['--id'])
         if args['--index']:
             return i in indices_from_str(args['--index'])
+        return True
 
     if args['parse']:
         dna.write(args['--out'])
