@@ -2,6 +2,8 @@
 
 import pytest
 import autosnapgene as snap
+import xml.etree.ElementTree as etree
+
 from pathlib import Path
 
 xml_t7 = '''\
@@ -88,16 +90,22 @@ def test_getters_flag(parse_and_write):
 
 @pytest.mark.parametrize(
         'xml, expected', [
-            ('<Q name="codon_start"><V int="1"/></Q>', {
+            ('<Q name="codon_start"><V int="1" /></Q>', {
                 'codon_start': 1,
             }),
-            ('<Q name="translation"><V text="DYKDDDDK"/></Q>', {
+            ('<Q name="translation"><V text="DYKDDDDK" /></Q>', {
                 'translation': 'DYKDDDDK',
             }),
-            ('<Q name="codon_start"><V int="1"/></Q>'
-             '<Q name="translation"><V text="DYKDDDDK"/></Q>', {
+            ('<Q name="codon_start"><V int="1" /></Q>'
+             '<Q name="translation"><V text="DYKDDDDK" /></Q>', {
                  'codon_start': 1,
                  'translation': 'DYKDDDDK',
+            }),
+            ('<Q name="note">'
+			   '<V text="pLannotate" />'
+			   '<V text="/database=snapgene" />'
+             '</Q>', {
+                 'note': ['pLannotate', '/database=snapgene'],
             }),
 
             # Weird special case: empty string.  From <dbp/076.dna>.
@@ -106,8 +114,13 @@ def test_getters_flag(parse_and_write):
             }),
 ])
 def test_qualifiers(xml, expected):
-    feat = snap.Feature.from_bytes(f'<Feature>{xml}</Feature>'.encode('utf8'))
+    xml = f'<Feature>{xml}</Feature>'.encode('utf8')
+
+    feat = snap.Feature.from_bytes(xml)
     assert feat.qualifiers == expected
+
+    root = feat.to_xml()
+    assert etree.tostring(root) == xml
 
 def test_get_feature(examples):
     dna = snap.parse(examples / 't7_promoter.dna')

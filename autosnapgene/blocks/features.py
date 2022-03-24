@@ -4,7 +4,7 @@ from ..parser import Block, Xml, Repr
 
 import autoprop
 import xml.etree.ElementTree as etree
-from more_itertools import one
+from more_itertools import one, always_iterable
 
 @autoprop
 class FeaturesBlock(Xml, Block):
@@ -116,14 +116,15 @@ class Feature(Xml, Repr):
                 q = etree.SubElement(parent, tag)
                 q.attrib['name'] = str(name)
 
-                v = etree.SubElement(q, 'V')
+                for value_i in always_iterable(value):
+                    v = etree.SubElement(q, 'V')
 
-                # Special-case empty strings as described in from_xml().
-                if value == "":
-                    continue
+                    # Special-case empty strings as described in from_xml().
+                    if value_i == "":
+                        continue
 
-                data_format = cls.data_formats[type(value)]
-                v.attrib[data_format] = str(value)
+                    data_format = cls.data_formats[type(value_i)]
+                    v.attrib[data_format] = str(value_i)
 
     class DirectionalityAttrib(Xml.EnumAttrib):
         value_from_str = {
@@ -199,6 +200,7 @@ class Feature(Xml, Repr):
         exception.
         """
         return one(self.segments)
+
     def set_segment(self, segment):
         """
         Remove any segments associated with this feature, and replace them with 
