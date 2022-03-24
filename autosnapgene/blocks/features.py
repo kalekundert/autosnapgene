@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 from ..parser import Block, Xml, Repr
+from ..util import reverse_complement
 
 import autoprop
 import xml.etree.ElementTree as etree
@@ -212,6 +213,28 @@ class Feature(Xml, Repr):
         """
         self.segments = [segment]
 
+    def get_range(self):
+        return self.begin, self.end
+
+    def get_begin(self):
+        return min(x.range[0] for x in self.segments)
+
+    def get_end(self):
+        return max(x.range[1] for x in self.segments)
+
+    def get_sequence(self, full_seq):
+        # It'd be nice to get rid of the *full_seq* argument, but that would 
+        # require this block to have access to the top-level `SnapGene` object.  
+        # This might be ok, but it's a bigger change than I want to make right 
+        # now.
+        start, end = self.range
+        seq = full_seq[start:end]
+
+        if self.directionality == 'backward':
+            return reverse_complement(seq)
+        else:
+            return seq
+
 @autoprop
 class FeatureSegment(Xml, Repr):
     repr_attrs = 'type', 'color', 'range'
@@ -220,11 +243,15 @@ class FeatureSegment(Xml, Repr):
 
         @staticmethod
         def from_str(str):
-            return tuple(int(x) for x in str.split('-'))
+            # Make the range indices compatible with the conventions for python 
+            # slicing.
+            i, j = tuple(int(x) for x in str.split('-'))
+            return i - 1, j
 
         @staticmethod
         def to_str(value):
-            return '-'.join(str(x) for x in value)
+            i, j = value
+            return f'{i+1}-{j}'
 
     xml_tag = 'Segment'
     xml_attrib_defs = [

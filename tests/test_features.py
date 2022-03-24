@@ -53,9 +53,9 @@ def test_getters_t7(parse_and_write):
         assert len(feat.segments) == 1
 
         seg = feat.segments[0]
-        assert seg.begin == 1
+        assert seg.begin == 0
         assert seg.end == 19
-        assert seg.range == (1, 19)
+        assert seg.range == (0, 19)
         assert seg.color == '#ffffff'
         assert seg.display == 'standard'
 
@@ -81,9 +81,9 @@ def test_getters_flag(parse_and_write):
         assert len(feat.segments) == 1
 
         seg = feat.segments[0]
-        assert seg.begin == 1
+        assert seg.begin == 0
         assert seg.end == 24
-        assert seg.range == (1, 24)
+        assert seg.range == (0, 24)
         assert seg.color == '#cc99b2'
         assert seg.display == 'standard'
         assert seg.is_translated == True
@@ -128,6 +128,22 @@ def test_get_feature(examples):
 
     assert feat.name == "T7 promoter"
     assert feat.type == 'promoter'
+    assert feat.range == (0, 19)
+    assert feat.directionality == 'forward'
+
+def test_get_feature_sequence_t7(examples):
+    dna = snap.parse(examples / 't7_promoter.dna')
+    feat = dna.get_feature("T7 promoter")
+    assert feat.get_sequence(dna.sequence) == 'TAATACGACTCACTATAGG'
+
+def test_get_feature_sequence_puc(examples):
+    dna = snap.parse(examples / 'puc19.dna')
+
+    # This is a backwards facing feature, so make sure we account for that when 
+    # getting the sequence.  This feature also has multiple segments, which 
+    # also makes it a good test.
+    feat = dna.get_feature("lac promoter")
+    assert feat.get_sequence(dna.sequence) == 'TTTACACTTTATGCTTCCGGCTCGTATGTTG'
 
 def test_add_feature(examples):
     dna = snap.parse(examples / 't7_promoter.dna')
