@@ -216,10 +216,11 @@ class SnapGene:
         should be set.
         """
         block = self.find_or_make_block(blocks.FeaturesBlock)
+        new_features = []
 
         if not seq:
             feature.id = block.next_id
-            block.features.append(feature)
+            new_features.append(feature)
 
         else:
             import re, copy
@@ -249,7 +250,10 @@ class SnapGene:
                 # Indexing starts at 1, per the spec.
                 feat.segment.range = (i + 1, i + len(seq))
                 feat.id = block.next_id
-                block.features.append(feat)
+                new_features.append(feat)
+
+        block.features += new_features
+        return new_features
 
     def remove_feature(self, name):
         """
